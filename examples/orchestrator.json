@@ -1,0 +1,13 @@
+{
+  "$schema": "../schema/orchestrator.schema.json",
+  "basePort": 14096,
+  "autoSpawn": true,
+  "startupTimeout": 30000,
+  "healthCheckInterval": 30000,
+  
+  "workers": [
+    "vision",
+    "docs",
+    "coder"
+  ]
+}

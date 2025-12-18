@@ -1,0 +1,133 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OpenCode Orchestrator Config",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "basePort": { "type": "number", "default": 14096 },
+    "autoSpawn": { "type": "boolean", "default": true },
+    "startupTimeout": { "type": "number", "default": 30000 },
+    "healthCheckInterval": { "type": "number", "default": 30000 },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "toasts": { "type": "boolean", "default": true },
+        "injectSystemContext": { "type": "boolean", "default": true },
+        "systemContextMaxWorkers": { "type": "number", "default": 12 },
+        "defaultListFormat": { "type": "string", "enum": ["markdown", "json"], "default": "markdown" }
+      }
+    },
+    "notifications": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "idle": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "title": { "type": "string" },
+            "message": { "type": "string" },
+            "delayMs": { "type": "number", "default": 1500 }
+          }
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "name": { "type": "string", "default": "orchestrator" },
+        "model": { "type": "string" },
+        "prompt": { "type": "string" },
+        "mode": { "type": "string", "enum": ["primary", "subagent"], "default": "primary" },
+        "color": { "type": "string" }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "prefix": { "type": "string", "default": "orchestrator." }
+      }
+    },
+    "pruning": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "DCP-inspired context pruning (truncates large tool inputs/outputs before sending to the LLM).",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "maxToolOutputChars": { "type": "number", "default": 12000 },
+        "maxToolInputChars": { "type": "number", "default": 4000 },
+        "protectedTools": { "type": "array", "items": { "type": "string" }, "default": ["task", "todowrite", "todoread"] }
+      }
+    },
+    "profiles": {
+      "type": "array",
+      "description": "Profiles available to spawn. Use this to set worker→model mapping without auto-spawning.",
+      "items": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "model": { "type": "string" },
+              "providerID": { "type": "string" },
+              "purpose": { "type": "string" },
+              "whenToUse": { "type": "string" },
+              "systemPrompt": { "type": "string" },
+              "port": { "type": "number" },
+              "supportsVision": { "type": "boolean" },
+              "supportsWeb": { "type": "boolean" },
+              "temperature": { "type": "number" },
+              "tags": { "type": "array", "items": { "type": "string" } },
+              "tools": {
+                "type": "object",
+                "additionalProperties": { "type": "boolean" }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "workers": {
+      "type": "array",
+      "description": "Workers to auto-spawn. Items may be built-in IDs (string) or full profile objects.",
+      "items": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "model": { "type": "string" },
+              "providerID": { "type": "string" },
+              "purpose": { "type": "string" },
+              "whenToUse": { "type": "string" },
+              "systemPrompt": { "type": "string" },
+              "port": { "type": "number" },
+              "supportsVision": { "type": "boolean" },
+              "supportsWeb": { "type": "boolean" },
+              "temperature": { "type": "number" },
+              "tags": { "type": "array", "items": { "type": "string" } },
+              "tools": {
+                "type": "object",
+                "additionalProperties": { "type": "boolean" }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
