@@ -5,6 +5,56 @@ All notable changes to Open Orchestra will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-12-21
+
+### Added
+- **PostHog Telemetry** - Optional analytics integration for tracking worker spawns, task delegations, and workflow runs
+  - Configure via `telemetry.apiKey` in orchestrator.json or `POSTHOG_API_KEY` env var
+  - Disabled by default for privacy
+- **Async Worker Jobs** - New `ask_worker_async` and `await_worker_job` tools for parallel worker execution
+- **Workflow System** - RooCode Boomerang workflow for plan→implement→review→fix cycles
+  - Configurable steps with carry-forward context
+  - Security limits on steps, task size, and timeouts
+- **Device Registry** - Cross-session worker reuse via persistent registry
+  - Workers survive session restarts
+  - Automatic cleanup of dead workers
+- **Profile Locking** - Prevents duplicate worker spawns across processes
+- **Bridge Server** - Internal communication layer for worker→orchestrator messaging
+- **Message Bus** - Inter-worker messaging with `message_tool` for reports and cross-worker communication
+- **Job Tracking** - Centralized job management with status tracking and results storage
+- **Memory Auto-Recording** - Automatic chat message recording to Neo4j knowledge graph
+- **Process Metrics** - CPU and memory monitoring for spawned workers
+
+### Changed
+- **Removed Debug Logging** - All console debug output removed to prevent TUI corruption
+  - Logs now only go to internal buffer accessible via API
+- **Simplified Logger** - Logger no longer emits to console, only buffers internally
+- **Dynamic Port Allocation** - Workers now use port 0 by default for automatic assignment
+- **Improved Model Resolution** - Better handling of `auto:*` and `node:*` model tags
+- **Worker Reuse** - Orchestrator now reuses existing workers from device registry before spawning new ones
+
+### Fixed
+- Debug logs leaking into TUI display (especially in Ghostty terminal)
+- Worker stdout/stderr now properly consumed to prevent parent process pollution
+- Stale lock file cleanup for crashed processes
+
+### Infrastructure
+- **Comprehensive Test Suite**:
+  - Unit tests for config merging, model catalog resolution
+  - Integration tests for auto-spawn limits
+  - Stress tests for concurrent spawns and job accumulation
+  - Performance benchmarks for device registry and spawn operations
+  - E2E tests for multi-agent workflows
+- **JSON Schema Updates** - Added telemetry, workflows, security, and memory config schemas
+- **Documentation Overhaul** - Streamlined docs into guide.md and reference.md
+
+### Security
+- Workflow security limits (maxSteps, maxTaskChars, maxCarryChars, perStepTimeoutMs)
+- Worker isolation via session-based contexts
+- Profile lock prevents race conditions in worker spawning
+
+---
+
 ## [0.1.0] - 2025-12-18
 
 ### Added
