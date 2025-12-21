@@ -4,6 +4,7 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "$schema": { "type": "string" },
     "basePort": { "type": "number", "default": 14096 },
     "autoSpawn": { "type": "boolean", "default": true },
     "startupTimeout": { "type": "number", "default": 30000 },
@@ -15,7 +16,9 @@
         "toasts": { "type": "boolean", "default": true },
         "injectSystemContext": { "type": "boolean", "default": true },
         "systemContextMaxWorkers": { "type": "number", "default": 12 },
-        "defaultListFormat": { "type": "string", "enum": ["markdown", "json"], "default": "markdown" }
+        "defaultListFormat": { "type": "string", "enum": ["markdown", "json"], "default": "markdown" },
+        "debug": { "type": "boolean", "default": false },
+        "logToConsole": { "type": "boolean", "default": false }
       }
     },
     "notifications": {
@@ -63,6 +66,76 @@
         "maxToolOutputChars": { "type": "number", "default": 12000 },
         "maxToolInputChars": { "type": "number", "default": 4000 },
         "protectedTools": { "type": "array", "items": { "type": "string" }, "default": ["task", "todowrite", "todoread"] }
+      }
+    },
+    "workflows": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "roocodeBoomerang": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "title": { "type": "string" },
+                  "workerId": { "type": "string" },
+                  "prompt": { "type": "string" },
+                  "carry": { "type": "boolean" }
+                }
+              }
+            },
+            "maxSteps": { "type": "number", "default": 4 },
+            "maxTaskChars": { "type": "number", "default": 12000 },
+            "maxCarryChars": { "type": "number", "default": 24000 },
+            "perStepTimeoutMs": { "type": "number", "default": 120000 }
+          }
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workflows": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxSteps": { "type": "number", "default": 4 },
+            "maxTaskChars": { "type": "number", "default": 12000 },
+            "maxCarryChars": { "type": "number", "default": 24000 },
+            "perStepTimeoutMs": { "type": "number", "default": 120000 }
+          }
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "autoSpawn": { "type": "boolean", "default": true },
+        "autoRecord": { "type": "boolean", "default": true },
+        "scope": { "type": "string", "enum": ["project", "global"], "default": "project" },
+        "maxChars": { "type": "number", "default": 2000 }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "PostHog telemetry settings. Set POSTHOG_API_KEY env var or provide apiKey here.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "apiKey": { "type": "string", "description": "PostHog API key (or use POSTHOG_API_KEY env var)" },
+        "host": { "type": "string", "description": "PostHog host (default: https://us.i.posthog.com)" }
       }
     },
     "profiles": {

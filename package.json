@@ -1,6 +1,6 @@
 {
   "name": "opencode-orchestrator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Multi-agent orchestrator plugin for OpenCode - spawn, manage, and coordinate specialized AI workers",
   "type": "module",
   "main": "dist/index.js",
@@ -14,7 +14,10 @@
   "files": [
     "dist",
     "src",
-    "schema"
+    "schema",
+    "docs",
+    "README.md",
+    "HEADLESS_TESTING.md"
   ],
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target node --external @opencode-ai/sdk --external @opencode-ai/plugin --external zod && tsc --emitDeclarationOnly --declaration --outDir dist",
@@ -25,7 +28,8 @@
   "dependencies": {
     "@opencode-ai/plugin": "^1.0.164",
     "@opencode-ai/sdk": "^1.0.164",
-    "neo4j-driver": "^6.0.1"
+    "neo4j-driver": "^6.0.1",
+    "posthog-node": "^5.17.4"
   },
   "devDependencies": {
     "@types/bun": "latest",

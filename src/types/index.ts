@@ -37,15 +37,36 @@ export interface WorkerInstance {
   profile: WorkerProfile;
   status: WorkerStatus;
   port: number;
+  /** PID of the spawned `opencode serve` process (when spawned by orchestrator) */
+  pid?: number;
+  /** Base URL of the worker server */
+  serverUrl?: string;
   /** Directory context for tool execution (query.directory) */
   directory?: string;
   sessionId?: string;
   client?: ReturnType<typeof import("@opencode-ai/sdk").createOpencodeClient>;
   /** If this worker was spawned in-process, this shuts down its server */
-  shutdown?: () => void;
+  shutdown?: () => void | Promise<void>;
   startedAt: Date;
   lastActivity?: Date;
   error?: string;
+  warning?: string;
+  currentTask?: string;
+  /** Most recent completed output (for UI) */
+  lastResult?: {
+    at: Date;
+    jobId?: string;
+    response: string;
+    report?: {
+      summary?: string;
+      details?: string;
+      issues?: string[];
+      notes?: string;
+    };
+    durationMs?: number;
+  };
+  /** How the worker model was resolved */
+  modelResolution?: string;
 }
 
 export interface Registry {
@@ -54,6 +75,57 @@ export interface Registry {
   getWorkersByCapability(capability: string): WorkerInstance[];
   getActiveWorkers(): WorkerInstance[];
 }
+
+export type WorkflowSecurityConfig = {
+  /** Maximum steps allowed in a workflow */
+  maxSteps?: number;
+  /** Maximum characters allowed in the initial task */
+  maxTaskChars?: number;
+  /** Maximum characters allowed to carry between steps */
+  maxCarryChars?: number;
+  /** Timeout per step (ms) */
+  perStepTimeoutMs?: number;
+};
+
+export type WorkflowStepConfig = {
+  id: string;
+  title?: string;
+  workerId?: string;
+  prompt?: string;
+  carry?: boolean;
+};
+
+export type WorkflowsConfig = {
+  enabled?: boolean;
+  roocodeBoomerang?: {
+    enabled?: boolean;
+    steps?: WorkflowStepConfig[];
+    maxSteps?: number;
+    maxTaskChars?: number;
+    maxCarryChars?: number;
+    perStepTimeoutMs?: number;
+  };
+};
+
+export type SecurityConfig = {
+  workflows?: WorkflowSecurityConfig;
+};
+
+export type MemoryConfig = {
+  enabled?: boolean;
+  autoSpawn?: boolean;
+  autoRecord?: boolean;
+  scope?: "project" | "global";
+  maxChars?: number;
+};
+
+export type TelemetryConfig = {
+  enabled?: boolean;
+  /** PostHog API key (or set POSTHOG_API_KEY env var) */
+  apiKey?: string;
+  /** PostHog host (default: https://us.i.posthog.com) */
+  host?: string;
+};
 
 export interface OrchestratorConfig {
   /** Base port to start assigning from */
@@ -78,6 +150,16 @@ export interface OrchestratorConfig {
     systemContextMaxWorkers?: number;
     /** Default tool output format */
     defaultListFormat?: "markdown" | "json";
+    /** Enable debug logging for orchestrator internals */
+    debug?: boolean;
+    /** Allow logs to print to console (default: false) */
+    logToConsole?: boolean;
+    /**
+     * First-run demo behavior (no config file detected):
+     * - true: auto-run `orchestrator.demo` once per machine/user
+     * - false: only show a toast tip
+     */
+    firstRunDemo?: boolean;
   };
   /** Optional idle notifications */
   notifications?: {
@@ -96,6 +178,8 @@ export interface OrchestratorConfig {
     prompt?: string;
     mode?: "primary" | "subagent";
     color?: string;
+    /** If true, also override the built-in `build` agent model */
+    applyToBuild?: boolean;
   };
   /** Inject command shortcuts into OpenCode config */
   commands?: {
@@ -113,6 +197,14 @@ export interface OrchestratorConfig {
     /** Tools that should never be pruned */
     protectedTools?: string[];
   };
+  /** Workflow configuration */
+  workflows?: WorkflowsConfig;
+  /** Security limits */
+  security?: SecurityConfig;
+  /** Memory graph settings */
+  memory?: MemoryConfig;
+  /** Telemetry settings (PostHog) */
+  telemetry?: TelemetryConfig;
 }
 
 export type OrchestratorConfigFile = {
@@ -126,6 +218,10 @@ export type OrchestratorConfigFile = {
   agent?: OrchestratorConfig["agent"];
   commands?: OrchestratorConfig["commands"];
   pruning?: OrchestratorConfig["pruning"];
+  workflows?: OrchestratorConfig["workflows"];
+  security?: OrchestratorConfig["security"];
+  memory?: OrchestratorConfig["memory"];
+  telemetry?: OrchestratorConfig["telemetry"];
   /** Profiles available to spawn (overrides/custom). Strings reference built-ins. */
   profiles?: Array<string | WorkerProfile>;
   /** Profiles to auto-spawn. Strings reference profiles by id. */
