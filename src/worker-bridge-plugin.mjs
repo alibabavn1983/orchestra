@@ -7,28 +7,29 @@ function getBridgeConfig() {
   return { url, token, workerId };
 }
 
+function getBridgeTimeoutMs() {
+  const raw = process.env.OPENCODE_ORCH_BRIDGE_TIMEOUT_MS;
+  const value = raw ? Number(raw) : 10_000;
+  return Number.isFinite(value) && value > 0 ? value : 10_000;
+}
+
 async function postJson(path, body) {
   const { url, token } = getBridgeConfig();
   if (!url || !token) throw new Error("Missing orchestrator bridge env (OPENCODE_ORCH_BRIDGE_URL/OPENCODE_ORCH_BRIDGE_TOKEN)");
-  const res = await fetch(`${url}${path}`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Bridge error ${res.status}: ${text || res.statusText}`);
+  const timeoutMs = getBridgeTimeoutMs();
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(new Error(`Bridge request timed out after ${timeoutMs}ms`)), timeoutMs);
+  let res;
+  try {
+    res = await fetch(`${url}${path}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: abort.signal,
+    });
+  } finally {
+    clearTimeout(timer);
   }
-  return await res.json().catch(() => ({}));
-}
-
-async function getJson(path) {
-  const { url, token } = getBridgeConfig();
-  if (!url || !token) throw new Error("Missing orchestrator bridge env (OPENCODE_ORCH_BRIDGE_URL/OPENCODE_ORCH_BRIDGE_TOKEN)");
-  const res = await fetch(`${url}${path}`, {
-    method: "GET",
-    headers: { authorization: `Bearer ${token}` },
-  });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Bridge error ${res.status}: ${text || res.statusText}`);
@@ -37,62 +38,36 @@ async function getJson(path) {
 }
 
 export const WorkerBridgePlugin = async () => {
-  const messageTool = tool({
-    description:
-      "Send a report or inter-agent message back to the orchestrator. Use this at the END of your turn to provide a detailed report (summary, details, issues).",
+  const streamChunkTool = tool({
+    description: `Stream a chunk of output in real-time to the orchestrator.
+Use this to provide incremental output as you work, enabling the user to see your progress.
+Call this multiple times during your response to stream output progressively.
+Set final=true on the last chunk to indicate completion.`,
     args: {
-      kind: tool.schema.enum(["report", "message"]).describe("Whether this is a final report or a message to another agent"),
-      jobId: tool.schema.string().optional().describe("Optional orchestrator job ID (if provided by the orchestrator)"),
-      to: tool.schema.string().optional().describe("Recipient for kind=message (e.g. 'orchestrator' or another worker id)"),
-      topic: tool.schema.string().optional().describe("Optional topic for kind=message"),
-      text: tool.schema.string().describe("The full text content (final report or message)"),
-      summary: tool.schema.string().optional().describe("Short summary (recommended for kind=report)"),
-      details: tool.schema.string().optional().describe("More detailed writeup (recommended for kind=report)"),
-      issues: tool.schema.array(tool.schema.string()).optional().describe("Issues encountered (recommended for kind=report)"),
+      chunk: tool.schema.string().describe("The text chunk to stream (partial response)"),
+      jobId: tool.schema.string().optional().describe("Optional job ID if this is related to an async job"),
+      final: tool.schema.boolean().optional().describe("Set to true for the final chunk"),
     },
     async execute(args) {
       const { workerId } = getBridgeConfig();
-      if (!workerId) return "Missing OPENCODE_ORCH_WORKER_ID; cannot attribute message.";
+      if (!workerId) return "Missing OPENCODE_ORCH_WORKER_ID; cannot stream.";
 
-      if (args.kind === "message") {
-        const to = args.to ?? "orchestrator";
-        await postJson("/v1/message", { from: workerId, to, topic: args.topic, text: args.text });
-        return `Message delivered to "${to}".`;
-      }
-
-      await postJson("/v1/report", {
+      const res = await postJson("/v1/stream/chunk", {
         workerId,
         jobId: args.jobId,
-        final: args.text,
-        report: { summary: args.summary, details: args.details, issues: args.issues },
+        chunk: args.chunk,
+        final: args.final,
       });
-      return "Report delivered to orchestrator.";
-    },
-  });
 
-  const inboxTool = tool({
-    description: "Fetch your inbox messages from the orchestrator message bus (for inter-agent communication).",
-    args: {
-      after: tool.schema.number().optional().describe("Only return messages after this unix-ms timestamp"),
-      limit: tool.schema.number().optional().describe("Max messages to return (default: 20)"),
-    },
-    async execute(args) {
-      const { workerId } = getBridgeConfig();
-      if (!workerId) return "Missing OPENCODE_ORCH_WORKER_ID; cannot fetch inbox.";
-      const after = typeof args.after === "number" ? args.after : 0;
-      const limit = typeof args.limit === "number" ? args.limit : 20;
-      const res = await getJson(`/v1/inbox?to=${encodeURIComponent(workerId)}&after=${encodeURIComponent(String(after))}&limit=${encodeURIComponent(String(limit))}`);
-      return JSON.stringify(res.messages ?? [], null, 2);
+      return `Chunk streamed (timestamp: ${res.timestamp ?? Date.now()})`;
     },
   });
 
   return {
     tool: {
-      message_tool: messageTool,
-      worker_inbox: inboxTool,
+      stream_chunk: streamChunkTool,
     },
   };
 };
 
 export default WorkerBridgePlugin;
-

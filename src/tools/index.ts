@@ -43,16 +43,18 @@ export {
 } from "./tools-profiles";
 export { memoryLink, memoryPut, memoryRecentTool, memorySearchTool } from "./tools-memory";
 export {
+  clearPassthroughMode,
   enableDocsPassthrough,
   macosKeybindsFix,
   orchestratorDashboard,
+  orchestratorOutput,
   orchestratorDeviceRegistry,
   orchestratorDemo,
   orchestratorHelp,
-  orchestratorMessages,
   orchestratorResults,
   orchestratorStart,
   orchestratorTodoView,
+  setPassthroughMode,
 } from "./tools-ux";
 export { orchestratorDiagnostics } from "./tools-diagnostics";
 export { listWorkflowsTool, runWorkflowTool } from "./tools-workflows";
@@ -84,16 +86,18 @@ import {
 } from "./tools-profiles";
 import { memoryLink, memoryPut, memoryRecentTool, memorySearchTool } from "./tools-memory";
 import {
+  clearPassthroughMode,
   enableDocsPassthrough,
   macosKeybindsFix,
   orchestratorDashboard,
+  orchestratorOutput,
   orchestratorDeviceRegistry,
   orchestratorDemo,
   orchestratorHelp,
-  orchestratorMessages,
   orchestratorResults,
   orchestratorStart,
   orchestratorTodoView,
+  setPassthroughMode,
 } from "./tools-ux";
 import { orchestratorDiagnostics } from "./tools-diagnostics";
 import { listWorkflowsTool, runWorkflowTool } from "./tools-workflows";
@@ -121,10 +125,15 @@ export const coreOrchestratorTools = {
   run_workflow: runWorkflowTool,
 
   // Observability (useful for orchestration + debugging)
+  orchestrator_output: orchestratorOutput,
   orchestrator_results: orchestratorResults,
-  orchestrator_messages: orchestratorMessages,
   orchestrator_device_registry: orchestratorDeviceRegistry,
   orchestrator_diagnostics: orchestratorDiagnostics,
+
+  // Passthrough (session-scoped)
+  set_passthrough: setPassthroughMode,
+  clear_passthrough: clearPassthroughMode,
+  enable_docs_passthrough: enableDocsPassthrough,
 };
 
 export const pluginTools = {
@@ -133,7 +142,6 @@ export const pluginTools = {
   orchestrator_demo: orchestratorDemo,
   orchestrator_dashboard: orchestratorDashboard,
   orchestrator_results: orchestratorResults,
-  orchestrator_messages: orchestratorMessages,
   orchestrator_device_registry: orchestratorDeviceRegistry,
   orchestrator_diagnostics: orchestratorDiagnostics,
   worker_trace: workerTrace,
@@ -159,6 +167,7 @@ export const pluginTools = {
   ensure_workers: ensureWorkers,
   find_worker: findWorker,
   autofill_profile_models: autofillProfileModels,
+  
 };
 
 export const orchestratorTools = {

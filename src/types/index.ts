@@ -9,7 +9,7 @@ export interface WorkerProfile {
   id: string;
   /** Human-readable name */
   name: string;
-  /** Model to use (e.g., "zhipuai/glm-4.6v", "anthropic/claude-sonnet-4") */
+  /** Model to use (e.g., "openrouter/meta-llama/llama-3.2-11b-vision-instruct", "anthropic/claude-sonnet-4") */
   model: string;
   /** Provider ID */
   providerID?: string;
@@ -31,6 +31,8 @@ export interface WorkerProfile {
   temperature?: number;
   /** Optional keywords/tags to improve matching */
   tags?: string[];
+  /** Whether to inject repo context on auto-launch (for docs worker) */
+  injectRepoContext?: boolean;
 }
 
 export interface WorkerInstance {
@@ -115,8 +117,34 @@ export type MemoryConfig = {
   enabled?: boolean;
   autoSpawn?: boolean;
   autoRecord?: boolean;
+  /** Inject memory into the system prompt for each message */
+  autoInject?: boolean;
   scope?: "project" | "global";
+  /** Max characters stored per raw message snippet */
   maxChars?: number;
+  /** Rolling summaries (session/project) */
+  summaries?: {
+    enabled?: boolean;
+    sessionMaxChars?: number;
+    projectMaxChars?: number;
+  };
+  /** Automatic trimming of stored message nodes */
+  trim?: {
+    maxMessagesPerSession?: number;
+    maxMessagesPerProject?: number;
+    maxMessagesGlobal?: number;
+    maxProjectsGlobal?: number;
+  };
+  /** Memory injection limits */
+  inject?: {
+    maxChars?: number;
+    maxEntries?: number;
+    includeMessages?: boolean;
+    includeSessionSummary?: boolean;
+    includeProjectSummary?: boolean;
+    includeGlobal?: boolean;
+    maxGlobalEntries?: number;
+  };
 };
 
 export type TelemetryConfig = {
@@ -160,6 +188,13 @@ export interface OrchestratorConfig {
      * - false: only show a toast tip
      */
     firstRunDemo?: boolean;
+    /**
+     * Inject a prompt into the orchestrator session when workers send wakeups.
+     * This allows async workers to actually "wake up" the orchestrator instead of
+     * just storing events to poll.
+     * Default: true
+     */
+    wakeupInjection?: boolean;
   };
   /** Optional idle notifications */
   notifications?: {
@@ -251,6 +286,22 @@ export interface WorkerResponse {
   duration?: number;
 }
 
+/** Payload sent by workers to wake up the orchestrator */
+export interface WakeupPayload {
+  /** Worker ID that triggered the wakeup */
+  workerId: string;
+  /** Optional job ID if related to an async job */
+  jobId?: string;
+  /** Reason for the wakeup */
+  reason: "result_ready" | "needs_attention" | "error" | "progress" | "custom";
+  /** Optional summary or message */
+  summary?: string;
+  /** Optional structured data */
+  data?: Record<string, unknown>;
+  /** Timestamp when the wakeup was triggered */
+  timestamp: number;
+}
+
 export interface OrchestratorEvents {
   "worker:spawned": { worker: WorkerInstance };
   "worker:ready": { worker: WorkerInstance };
@@ -258,5 +309,6 @@ export interface OrchestratorEvents {
   "worker:error": { worker: WorkerInstance; error: string };
   "worker:stopped": { worker: WorkerInstance };
   "worker:response": { worker: WorkerInstance; response: WorkerResponse };
+  "worker:wakeup": { payload: WakeupPayload };
   "registry:updated": { registry: Registry };
 }
