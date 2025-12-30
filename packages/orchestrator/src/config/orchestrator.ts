@@ -1,9 +1,32 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { OrchestratorConfig, OrchestratorConfigFile, WorkerProfile } from "../types";
+import type {
+  OrchestratorConfig,
+  OrchestratorConfigFile,
+  WorkerBackend,
+  WorkerExecution,
+  WorkerKind,
+  WorkerProfile,
+} from "../types";
 import { builtInProfiles } from "./profiles";
 import { isPlainObject, asBooleanRecord, asStringArray, getUserConfigDir, deepMerge } from "../helpers/format";
+
+function isWorkerKind(value: unknown): value is WorkerKind {
+  return value === "server" || value === "agent" || value === "subagent";
+}
+
+function isWorkerExecution(value: unknown): value is WorkerExecution {
+  return value === "foreground" || value === "background";
+}
+
+function kindFromBackend(backend: WorkerBackend): WorkerKind {
+  return backend === "agent" ? "agent" : "server";
+}
+
+function backendFromKind(kind: WorkerKind): WorkerBackend {
+  return kind === "server" ? "server" : "agent";
+}
 
 
 export function resolveWorkerEntry(entry: unknown): WorkerProfile | undefined {
@@ -38,13 +61,46 @@ export function resolveWorkerEntry(entry: unknown): WorkerProfile | undefined {
     merged.tags = tags;
   }
 
-  if ("backend" in merged) {
-    const backend = (merged as any).backend;
-    if (backend !== undefined && backend !== "agent" && backend !== "server") {
-      return undefined;
-    }
-    merged.backend = backend;
+  const entryBackend = "backend" in entry ? (entry as any).backend : undefined;
+  if (entryBackend !== undefined && entryBackend !== "agent" && entryBackend !== "server") {
+    return undefined;
   }
+
+  const entryKind = "kind" in entry ? (entry as any).kind : undefined;
+  if (entryKind !== undefined && !isWorkerKind(entryKind)) {
+    return undefined;
+  }
+
+  const entryExecution = "execution" in entry ? (entry as any).execution : undefined;
+  if (entryExecution !== undefined && !isWorkerExecution(entryExecution)) {
+    return undefined;
+  }
+
+  if (entryBackend !== undefined && entryKind !== undefined) {
+    const backendKind = kindFromBackend(entryBackend);
+    if (entryKind !== backendKind) {
+      throw new Error(
+        `Worker "${id}" has conflicting backend ("${entryBackend}") and kind ("${entryKind}")`
+      );
+    }
+  }
+
+  const baseBackend = base?.backend;
+  const baseKind = base?.kind;
+  const resolvedKind =
+    entryKind ??
+    (entryBackend
+      ? kindFromBackend(entryBackend)
+      : baseKind ?? (baseBackend ? kindFromBackend(baseBackend) : undefined));
+  const resolvedBackend =
+    entryBackend ??
+    (entryKind
+      ? backendFromKind(entryKind)
+      : baseBackend ?? (baseKind ? backendFromKind(baseKind) : undefined));
+
+  if (resolvedKind) merged.kind = resolvedKind;
+  if (resolvedBackend) merged.backend = resolvedBackend;
+  if (entryExecution !== undefined) merged.execution = entryExecution;
 
   return merged as unknown as WorkerProfile;
 }
@@ -153,6 +209,21 @@ export function parseOrchestratorConfigFile(raw: unknown): Partial<OrchestratorC
   if (isPlainObject(raw.workflows)) {
     const workflows: Record<string, unknown> = {};
     if (typeof raw.workflows.enabled === "boolean") workflows.enabled = raw.workflows.enabled;
+    if (isPlainObject(raw.workflows.ui)) {
+      const ui: Record<string, unknown> = {};
+      if (raw.workflows.ui.execution === "step" || raw.workflows.ui.execution === "auto") {
+        ui.execution = raw.workflows.ui.execution;
+      }
+      if (
+        raw.workflows.ui.intervene === "never" ||
+        raw.workflows.ui.intervene === "on-warning" ||
+        raw.workflows.ui.intervene === "on-error" ||
+        raw.workflows.ui.intervene === "always"
+      ) {
+        ui.intervene = raw.workflows.ui.intervene;
+      }
+      if (Object.keys(ui).length > 0) workflows.ui = ui;
+    }
     if (Array.isArray(raw.workflows.definitions)) {
       const definitions = raw.workflows.definitions
         .map((def: unknown) => {

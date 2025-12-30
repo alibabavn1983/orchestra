@@ -21,7 +21,7 @@ export const MemoryPage: Component = () => {
   const memoryWrites = createMemo(() =>
     events()
       .map((item) => parseOrchestratorEvent(item.payload))
-      .filter((event): event is OrchestratorEvent => Boolean(event) && event.type === "orchestra.memory.written")
+      .filter((event): event is OrchestratorEvent => event != null && event.type === "orchestra.memory.written")
       .sort((a, b) => b.timestamp - a.timestamp),
   );
 

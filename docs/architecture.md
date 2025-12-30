@@ -50,6 +50,8 @@ flowchart TD
 | Workflows | Orchestrator | `orchestrator.json` | `WorkflowRun` + workflow events |
 | Memory | Orchestrator | `orchestrator.json` + optional DB config | `orchestra.memory.written` events |
 
+Worker profiles define the worker kind (`server`, `agent`, `subagent`) and execution mode (`foreground`, `background`) in `orchestrator.json`.
+
 ## Runtime wiring
 
 - OpenCode loads the orchestrator plugin from `packages/orchestrator/dist/index.js` (desktop fallback: `src/index.ts`).

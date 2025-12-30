@@ -110,22 +110,39 @@ function buildVisionPlaceholder(
   workerModel: string,
   jobId: string
 ): string {
-  const workerInfo = `${workerName} (${workerModel})`;
-  const awaitCall = `await_worker_job({ jobId: "${jobId}" })`;
-  const boxWidth = Math.max(60, workerInfo.length + 12, jobId.length + 12, awaitCall.length + 4);
-  const hr = "─".repeat(boxWidth - 2);
-  const pad = (s: string) => s.padEnd(boxWidth - 4);
+  // Simple, clean markdown format that renders well in terminals
+  return [
+    `**[VISION ANALYSIS]**`,
+    ``,
+    `> **Worker:** ${workerName}`,
+    `> **Model:** ${workerModel}`,
+    `> **Job ID:** \`${jobId}\``,
+    ``,
+    `Status: analyzing image content...`,
+    ``,
+    `\`\`\``,
+    `await_worker_job({ jobId: "${jobId}" })`,
+    `\`\`\``,
+  ].join("\n");
+}
+
+function buildVisionWakeup(
+  _workerId: string,
+  jobId: string,
+  success: boolean,
+  summary: string
+): string {
+  const header = success ? "**[VISION ANALYSIS COMPLETE]**" : "**[VISION ANALYSIS FAILED]**";
 
   return [
-    `┌${hr}┐`,
-    `│ 🖼  [VISION ANALYSIS PENDING]${" ".repeat(boxWidth - 34)}│`,
-    `├${hr}┤`,
-    `│ Worker: ${pad(workerInfo)}│`,
-    `│ Job ID: ${pad(jobId)}│`,
-    `├${hr}┤`,
-    `│ ${pad("⏳ Analyzing image content...")}│`,
-    `│ ${pad(awaitCall)}│`,
-    `└${hr}┘`,
+    header,
+    ``,
+    `> ${summary}`,
+    `> **Job ID:** \`${jobId}\``,
+    ``,
+    `\`\`\``,
+    `await_worker_job({ jobId: "${jobId}" })`,
+    `\`\`\``,
   ].join("\n");
 }
 
@@ -227,11 +244,7 @@ export function createWorkflowTriggers(context: OrchestratorContext, options: Wo
           workerJobs.setError(job.id, { error });
 
           // Inject wakeup message on error
-          const wakeupMessage =
-            `<orchestrator-internal kind="wakeup" workerId="${workerId}" reason="error" jobId="${job.id}">\n` +
-            `[VISION ANALYSIS] ${error} (jobId: ${job.id}).\n` +
-            `Check await_worker_job({ jobId: "${job.id}" }) for details.\n` +
-            `</orchestrator-internal>`;
+          const wakeupMessage = buildVisionWakeup(workerId, job.id, false, error);
           void injectOrchestratorNotice(context, sessionId, wakeupMessage);
           await showToast(`Vision analysis failed: ${error}`, "warning");
           return;
@@ -266,13 +279,8 @@ export function createWorkflowTriggers(context: OrchestratorContext, options: Wo
         }
 
         // Inject wakeup message when analysis completes (v0.2.3 behavior)
-        const reason = picked.success ? "result_ready" : "error";
-        const summary = picked.success ? "vision analysis complete" : (picked.error ?? "vision analysis failed");
-        const wakeupMessage =
-          `<orchestrator-internal kind="wakeup" workerId="${workerId}" reason="${reason}" jobId="${job.id}">\n` +
-          `[VISION ANALYSIS] ${summary} (jobId: ${job.id}).\n` +
-          `Check await_worker_job({ jobId: "${job.id}" }) for details.\n` +
-          `</orchestrator-internal>`;
+        const summary = picked.success ? "Vision analysis complete" : (picked.error ?? "Vision analysis failed");
+        const wakeupMessage = buildVisionWakeup(workerId, job.id, picked.success, summary);
         void injectOrchestratorNotice(context, sessionId, wakeupMessage);
 
         if (!picked.success && picked.error) {
@@ -283,18 +291,17 @@ export function createWorkflowTriggers(context: OrchestratorContext, options: Wo
         workerJobs.setError(job.id, { error: msg });
 
         // Inject wakeup message on crash
-        const wakeupMessage =
-          `<orchestrator-internal kind="wakeup" workerId="${workerId}" reason="error" jobId="${job.id}">\n` +
-          `[VISION ANALYSIS] ${msg} (jobId: ${job.id}).\n` +
-          `Check await_worker_job({ jobId: "${job.id}" }) for details.\n` +
-          `</orchestrator-internal>`;
+        const wakeupMessage = buildVisionWakeup(workerId, job.id, false, msg);
         void injectOrchestratorNotice(context, sessionId, wakeupMessage);
         await showToast(`Vision analysis crashed: ${msg}`, "error");
       }
     };
 
-    // Always run non-blocking - placeholder is injected synchronously above
-    void run();
+    if (trigger.blocking) {
+      await run();
+    } else {
+      void run();
+    }
   };
 
   const handleMemoryTurnEnd = async (input: any, _output: any): Promise<void> => {

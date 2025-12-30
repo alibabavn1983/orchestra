@@ -56,7 +56,7 @@ function resolveBridgePort(): number {
 export async function startBridgeServer(): Promise<BridgeServer> {
   const token = randomBytes(18).toString("base64url");
   const port = resolveBridgePort();
-
+  const host = "127.0.0.1";
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const auth = req.headers.authorization ?? "";
@@ -185,8 +185,9 @@ export async function startBridgeServer(): Promise<BridgeServer> {
 
   await new Promise<void>((resolve, reject) => {
     server.on("error", reject);
-    server.listen(port, "127.0.0.1", () => resolve());
+    server.listen(port, host, () => resolve());
   });
+
   const addr = server.address();
   if (!addr || typeof addr === "string") throw new Error("Failed to bind bridge server");
   const url = `http://127.0.0.1:${addr.port}`;

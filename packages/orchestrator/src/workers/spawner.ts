@@ -17,6 +17,8 @@ import {
 import type { SendToWorkerOptions } from "./send";
 
 function resolveWorkerBackend(profile: WorkerProfile): WorkerBackend {
+  if (profile.kind === "server") return "server";
+  if (profile.kind === "agent" || profile.kind === "subagent") return "agent";
   return profile.backend === "agent" ? "agent" : "server";
 }
 

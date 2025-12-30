@@ -64,14 +64,14 @@ export const DashboardPage: Component = () => {
   const memoryWrites = createMemo(() =>
     events()
       .map((item) => parseOrchestratorEvent(item.payload))
-      .filter((event): event is OrchestratorEvent => Boolean(event) && event.type === "orchestra.memory.written")
+      .filter((event): event is OrchestratorEvent => event != null && event.type === "orchestra.memory.written")
       .sort((a, b) => b.timestamp - a.timestamp),
   );
 
   const errorEvents = createMemo(() =>
     events()
       .map((item) => parseOrchestratorEvent(item.payload))
-      .filter((event): event is OrchestratorEvent => Boolean(event) && event.type === "orchestra.error")
+      .filter((event): event is OrchestratorEvent => event != null && event.type === "orchestra.error")
       .sort((a, b) => b.timestamp - a.timestamp),
   );
 
@@ -167,7 +167,9 @@ export const DashboardPage: Component = () => {
                         </Show>
 
                         <Show when={worker.lastResult}>
-                          {(result) => (
+                          {(result) => {
+                            const resultAt = result().at;
+                            return (
                             <div class="rounded-md border border-border/60 bg-card/70 px-3 py-2 text-xs">
                               <div class="text-[10px] uppercase text-muted-foreground mb-1">Last result</div>
                               <div class="text-foreground">
@@ -177,11 +179,12 @@ export const DashboardPage: Component = () => {
                                 ) || "No summary available."}
                               </div>
                               <div class="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                                <span>{result().at ? formatRelativeTime(result().at) : "—"}</span>
+                                <span>{resultAt ? formatRelativeTime(resultAt) : "—"}</span>
                                 <span>{formatDuration(result().durationMs)}</span>
                               </div>
                             </div>
-                          )}
+                          );
+                          }}
                         </Show>
 
                         <div class="flex items-center justify-between text-xs text-muted-foreground">

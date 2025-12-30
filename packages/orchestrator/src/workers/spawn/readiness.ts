@@ -1,4 +1,4 @@
-import { createOpencodeClient } from "@opencode-ai/sdk";
+import type { createOpencodeClient } from "@opencode-ai/sdk";
 
 const workerBridgeToolIds = ["stream_chunk"] as const;
 

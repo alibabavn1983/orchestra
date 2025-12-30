@@ -4,14 +4,20 @@
 
 export type WorkerStatus = "starting" | "ready" | "busy" | "error" | "stopped";
 export type WorkerBackend = "agent" | "server";
+export type WorkerKind = "server" | "agent" | "subagent";
+export type WorkerExecution = "foreground" | "background";
 
 export interface WorkerProfile {
   /** Unique identifier for this worker */
   id: string;
   /** Human-readable name */
   name: string;
-  /** Execution backend (agent = in-process, server = spawned) */
+  /** Worker kind (server = spawned, agent/subagent = in-process) */
+  kind?: WorkerKind;
+  /** Execution backend (agent = in-process, server = spawned). Deprecated: prefer kind. */
   backend?: WorkerBackend;
+  /** Execution mode (foreground = interactive, background = deterministic) */
+  execution?: WorkerExecution;
   /** Model to use (e.g., "openrouter/meta-llama/llama-3.2-11b-vision-instruct", "anthropic/claude-sonnet-4") */
   model: string;
   /** Provider ID */
@@ -119,6 +125,10 @@ export type WorkflowTriggerConfig = {
 
 export type WorkflowsConfig = {
   enabled?: boolean;
+  ui?: {
+    execution?: "step" | "auto";
+    intervene?: "never" | "on-warning" | "on-error" | "always";
+  };
   definitions?: WorkflowDefinitionConfig[];
   triggers?: {
     visionOnImage?: WorkflowTriggerConfig;

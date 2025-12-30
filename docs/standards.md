@@ -48,5 +48,7 @@ Run them together with `bun run check`.
 - "Skill" means OpenCode skill content (`.opencode/skill/<name>/SKILL.md`).
 - "Agent" means OpenCode agent configuration (`.opencode/agent/*.md`).
 - "Worker profile" means orchestrator-owned worker definitions (`orchestrator.json`).
+- "Worker kind" means `server`, `agent`, or `subagent` in `orchestrator.json`.
+- "Execution mode" means `foreground` or `background` in `orchestrator.json`.
 - "Workflow" means orchestrator multi-step execution (plugin-owned).
 - If it configures model/tools/permissions, it is an agent/profile, not a skill.

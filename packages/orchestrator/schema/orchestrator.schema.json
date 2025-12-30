@@ -84,6 +84,14 @@
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "default": true },
+        "ui": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "execution": { "type": "string", "enum": ["step", "auto"] },
+            "intervene": { "type": "string", "enum": ["never", "on-warning", "on-error", "always"] }
+          }
+        },
         "definitions": {
           "type": "array",
           "items": {
@@ -251,10 +259,20 @@
             "properties": {
               "id": { "type": "string" },
               "name": { "type": "string" },
+              "kind": {
+                "type": "string",
+                "enum": ["server", "agent", "subagent"],
+                "description": "Worker kind (server = spawned, agent/subagent = in-process)"
+              },
+              "execution": {
+                "type": "string",
+                "enum": ["foreground", "background"],
+                "description": "Execution mode for this worker"
+              },
               "backend": {
                 "type": "string",
                 "enum": ["agent", "server"],
-                "description": "Execution backend for this worker (agent = in-process, server = spawned)"
+                "description": "Execution backend for this worker (agent = in-process, server = spawned). Deprecated: prefer kind."
               },
               "model": { "type": "string" },
               "providerID": { "type": "string" },
@@ -289,10 +307,20 @@
             "properties": {
               "id": { "type": "string" },
               "name": { "type": "string" },
+              "kind": {
+                "type": "string",
+                "enum": ["server", "agent", "subagent"],
+                "description": "Worker kind (server = spawned, agent/subagent = in-process)"
+              },
+              "execution": {
+                "type": "string",
+                "enum": ["foreground", "background"],
+                "description": "Execution mode for this worker"
+              },
               "backend": {
                 "type": "string",
                 "enum": ["agent", "server"],
-                "description": "Execution backend for this worker (agent = in-process, server = spawned)"
+                "description": "Execution backend for this worker (agent = in-process, server = spawned). Deprecated: prefer kind."
               },
               "model": { "type": "string" },
               "providerID": { "type": "string" },

@@ -127,6 +127,12 @@ export type OrchestratorEvent<T extends OrchestratorEventType = OrchestratorEven
 const emitter = new EventEmitter();
 emitter.setMaxListeners(100);
 
+function resolveWorkerBackend(profile: WorkerInstance["profile"]): WorkerBackend {
+  if (profile.kind === "server") return "server";
+  if (profile.kind === "agent" || profile.kind === "subagent") return "agent";
+  return profile.backend ?? "server";
+}
+
 export function serializeWorkerInstance(
   instance: WorkerInstance,
   overrides?: { status?: WorkerStatus }
@@ -136,7 +142,7 @@ export function serializeWorkerInstance(
     id: instance.profile.id,
     name: instance.profile.name,
     status,
-    backend: instance.profile.backend ?? "server",
+    backend: resolveWorkerBackend(instance.profile),
     model: instance.profile.model,
     modelResolution: instance.modelResolution,
     purpose: instance.profile.purpose,

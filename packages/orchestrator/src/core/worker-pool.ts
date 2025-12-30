@@ -49,6 +49,12 @@ export interface SendResult {
   error?: string;
 }
 
+function resolveWorkerBackend(profile: WorkerProfile): "agent" | "server" {
+  if (profile.kind === "server") return "server";
+  if (profile.kind === "agent" || profile.kind === "subagent") return "agent";
+  return profile.backend === "agent" ? "agent" : "server";
+}
+
 // Device registry types (for cross-session persistence)
 export type DeviceRegistryWorkerEntry = {
   kind: "worker";
@@ -233,7 +239,7 @@ export class WorkerPool {
     // Create the spawn promise BEFORE any async work to prevent race conditions
     // Wrap the entire flow (reuse check + spawn) in a single promise
     const spawnPromise = (async (): Promise<WorkerInstance> => {
-      const backend = profile.backend === "agent" ? "agent" : "server";
+      const backend = resolveWorkerBackend(profile);
       if (backend === "server") {
         const reused = await this.tryReuseFromDeviceRegistry(profile, options);
         if (reused) {
@@ -610,7 +616,7 @@ export class WorkerPool {
       name: w.profile.name,
       model: w.profile.model,
       modelResolution: w.modelResolution,
-      backend: w.profile.backend ?? "server",
+      backend: resolveWorkerBackend(w.profile),
       purpose: w.profile.purpose,
       whenToUse: w.profile.whenToUse,
       status: w.status,

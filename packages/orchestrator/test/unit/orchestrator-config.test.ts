@@ -13,6 +13,7 @@ describe("parseOrchestratorConfigFile", () => {
         debug: "nope",
       },
       notifications: { idle: { enabled: true, title: 123, message: "hello", delayMs: 1500 } },
+      workflows: { ui: { execution: "step", intervene: "on-warning" } },
       profiles: ["coder", 123, { id: "custom" }],
     });
 
@@ -20,6 +21,7 @@ describe("parseOrchestratorConfigFile", () => {
     expect(parsed.autoSpawn).toBe(true);
     expect(parsed.ui).toEqual({ toasts: false, defaultListFormat: "json" });
     expect(parsed.notifications?.idle).toEqual({ enabled: true, message: "hello", delayMs: 1500 });
+    expect(parsed.workflows?.ui).toEqual({ execution: "step", intervene: "on-warning" });
     const profiles = parsed.profiles ?? [];
     expect(profiles[0]).toBe("coder");
     const customProfile = profiles[1];
@@ -45,5 +47,35 @@ describe("resolveWorkerEntry", () => {
     expect(resolved?.name).toBe("Custom Coder");
     expect(resolved?.model).toBe("node:fast");
     expect(resolved?.systemPrompt).toBe(builtInProfiles.coder.systemPrompt);
+  });
+
+  test("accepts kind and execution with backend mapping", () => {
+    const resolved = resolveWorkerEntry({
+      id: "custom",
+      name: "Custom Worker",
+      model: "node",
+      purpose: "Test",
+      whenToUse: "Test",
+      kind: "agent",
+      execution: "foreground",
+    });
+
+    expect(resolved?.kind).toBe("agent");
+    expect(resolved?.backend).toBe("agent");
+    expect(resolved?.execution).toBe("foreground");
+  });
+
+  test("rejects conflicting backend and kind", () => {
+    expect(() =>
+      resolveWorkerEntry({
+        id: "custom",
+        name: "Custom Worker",
+        model: "node",
+        purpose: "Test",
+        whenToUse: "Test",
+        backend: "server",
+        kind: "agent",
+      })
+    ).toThrow(/conflicting backend/i);
   });
 });
