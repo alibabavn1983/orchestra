@@ -3,6 +3,7 @@ import {
   fetchModelInfo,
   fetchOpencodeConfig,
   fetchProviders,
+  filterProviders,
   flattenProviders,
   parseFullModelID,
   pickDocsModel,
@@ -35,7 +36,7 @@ export async function hydrateProfileModelsFromOpencode(input: {
   const providersAll = providersRes.providers;
   // For auto-selection (node:vision, node:fast, etc.), prefer configured providers.
   // But allow ALL providers for explicit model references since the user chose them.
-  const providersUsable = providersAll.filter((p) => p.id === "opencode" || p.source !== "api");
+  const providersUsable = filterProviders(providersAll, "configured");
   const catalog = flattenProviders(providersUsable);
 
   // Collect provider IDs explicitly referenced in profile models (user intent = use them)

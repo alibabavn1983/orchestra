@@ -37,6 +37,77 @@ const createClient = (input: {
 };
 
 describe("hydrateProfileModelsFromOpencode", () => {
+  test("includes api providers with key for node:fast tags", async () => {
+    const api = makeProvider({
+      id: "api",
+      source: "api",
+      key: "token",
+      models: { "fast-ultra": { name: "fast-ultra", limit: { context: 128000, output: 0 } } },
+    });
+
+    const client = createClient({
+      providersConfig: [],
+      providersList: [api],
+    });
+
+    const profiles: Record<string, WorkerProfile> = {
+      fast: {
+        id: "fast",
+        name: "Fast",
+        model: "node:fast",
+        purpose: "Test",
+        whenToUse: "Test",
+      },
+    };
+
+    const result = await hydrateProfileModelsFromOpencode({
+      client,
+      directory: process.cwd(),
+      profiles,
+    });
+
+    expect(result.profiles.fast.model).toBe("api/fast-ultra");
+  });
+
+  test("excludes api providers without key for node:fast tags", async () => {
+    const configured = makeProvider({
+      id: "cfg",
+      source: "config",
+      models: {
+        "steady-large": { name: "steady-large", cost: { input: 10, output: 0, cache: { read: 0, write: 0 } } },
+      },
+    });
+    const api = makeProvider({
+      id: "api",
+      source: "api",
+      models: { "fast-ultra": { name: "fast-ultra", limit: { context: 128000, output: 0 } } },
+    });
+
+    const client = createClient({
+      config: { model: "cfg/steady-large" } as Config,
+      providersConfig: [configured],
+      providersList: [configured, api],
+    });
+
+    const profiles: Record<string, WorkerProfile> = {
+      fast: {
+        id: "fast",
+        name: "Fast",
+        model: "node:fast",
+        purpose: "Test",
+        whenToUse: "Test",
+      },
+    };
+
+    const result = await hydrateProfileModelsFromOpencode({
+      client,
+      directory: process.cwd(),
+      profiles,
+    });
+
+    expect(result.profiles.fast.model).toBe("cfg/steady-large");
+  });
+
   test("uses configured providers for node:fast tags", async () => {
     const configured = makeProvider({
       id: "cfg",
@@ -47,7 +118,9 @@ describe("hydrateProfileModelsFromOpencode", () => {
       id: "api",
       source: "api",
       key: "token",
-      models: { "fast-ultra": { name: "fast-ultra" } },
+      models: {
+        "slow-ultra": { name: "slow-ultra", cost: { input: 10, output: 0, cache: { read: 0, write: 0 } } },
+      },
     });
 
     const client = createClient({
@@ -84,7 +157,6 @@ describe("hydrateProfileModelsFromOpencode", () => {
     const api = makeProvider({
       id: "api",
       source: "api",
-      key: "token",
       models: { "fast-ultra": { name: "fast-ultra" } },
     });
 
