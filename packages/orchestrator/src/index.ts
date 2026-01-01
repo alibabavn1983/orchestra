@@ -410,6 +410,11 @@ export const OrchestratorPlugin: Plugin = async (ctx) => {
             description: "List available models from your OpenCode config",
             template: "Call task_list({ view: 'models', format: 'markdown' }).",
           },
+          [`${prefix}worker-model`]: {
+            description: "Set a worker's model (provider/model or tag)",
+            template:
+              "Call task_start({ kind: 'op', op: 'worker.model.set', task: 'worker.model.set', worker: { workerId: '<workerId>', model: '<model>' } }) and then task_await({ taskId: '<returned taskId>' }).",
+          },
           [`${prefix}profiles`]: {
             description: "List available worker profiles",
             template: "Call task_list({ view: 'profiles', format: 'markdown' }).",

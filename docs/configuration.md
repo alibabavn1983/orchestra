@@ -310,6 +310,15 @@ Configure command injection.
 
 ---
 
+## How to change worker model from the TUI
+
+1. Run `orchestrator.models` to list available `provider/model` IDs.
+2. Run `orchestrator.worker-model <workerId> <model>` to apply the model to a worker.
+   Example: `orchestrator.worker-model docs openai/gpt-5` or `orchestrator.worker-model vision node:vision`
+3. Run `orchestrator.workers` to confirm the worker's model and resolution reason.
+
+---
+
 ## Model Tags
 
 Model tags let you specify capabilities instead of specific models. Open Orchestra resolves these tags based on your configured providers.
