@@ -2,7 +2,7 @@ import { tool, type ToolDefinition } from "@opencode-ai/plugin";
 import { getProfile } from "../config/profiles";
 import { workerJobs } from "../core/jobs";
 import type { OrchestratorContext } from "../context/orchestrator-context";
-import { sendToWorker, spawnWorker } from "../workers/spawner";
+import { sendToWorker, spawnWorker, stopWorker } from "../workers/spawner";
 import { renderMarkdownTable } from "./markdown";
 import type { ToolContext } from "./state";
 import { getOrchestratorContext } from "./state";
@@ -32,7 +32,9 @@ type ToolAttachment = {
   mimeType?: string;
 };
 
-type TaskOpKind = "memory.put" | "memory.link" | "memory.done";
+type MemoryOpKind = "memory.put" | "memory.link" | "memory.done";
+type WorkerModelOpKind = "worker.model.set" | "worker.model.reset";
+type TaskOpKind = MemoryOpKind | WorkerModelOpKind;
 
 type MemoryOpPayload = {
   taskId?: string;
@@ -47,6 +49,13 @@ type MemoryOpPayload = {
   storedKeys?: string[];
   linkedKeys?: Array<{ from: string; to: string; relation: string }>;
   notes?: string;
+};
+
+type WorkerModelOpPayload = {
+  workerId?: string;
+  model?: string;
+  modelPolicy?: "dynamic" | "sticky";
+  respawn?: boolean;
 };
 
 function hasImageAttachment(attachments: ToolAttachment[] | undefined): boolean {
@@ -83,7 +92,7 @@ function resolveMemoryScope(context: OrchestratorContext, input?: string): Memor
 
 async function runMemoryOp(
   context: OrchestratorContext,
-  op: TaskOpKind,
+  op: MemoryOpKind,
   memory?: MemoryOpPayload
 ): Promise<{ ok: boolean; response?: string; error?: string }> {
   if (op === "memory.put") {
@@ -179,6 +188,111 @@ async function runMemoryOp(
   return result.ok ? { ok: true, response: result.message } : { ok: false, error: result.message };
 }
 
+function isMemoryOp(op: TaskOpKind): op is MemoryOpKind {
+  return op.startsWith("memory.");
+}
+
+async function runWorkerModelOp(
+  context: OrchestratorContext,
+  op: WorkerModelOpKind,
+  worker?: WorkerModelOpPayload,
+  sessionId?: string
+): Promise<{ ok: boolean; response?: string; error?: string }> {
+  const workerId = worker?.workerId?.trim();
+  if (!workerId) return { ok: false, error: `Missing worker.workerId for op ${op}.` };
+
+  const instance = context.workerPool.get(workerId);
+  if (!instance) return { ok: false, error: `Worker "${workerId}" is not running. Spawn it first.` };
+
+  const baseProfile = getProfile(workerId, context.profiles);
+  if (!baseProfile) return { ok: false, error: `Unknown worker "${workerId}".` };
+
+  const client = context.client;
+  if (!client) return { ok: false, error: "OpenCode client not available; restart OpenCode." };
+
+  const [cfg, providersRes] = await Promise.all([
+    fetchOpencodeConfig(client, context.directory),
+    fetchProviders(client, context.directory),
+  ]);
+
+  let resolved: ReturnType<typeof resolveWorkerModel>;
+  if (op === "worker.model.set") {
+    const modelRef = worker?.model?.trim();
+    if (!modelRef) return { ok: false, error: "Missing worker.model for op worker.model.set." };
+    resolved = resolveWorkerModel({
+      profile: instance.profile,
+      overrideModelRef: modelRef,
+      config: cfg,
+      providers: providersRes.providers,
+      providerDefaults: providersRes.defaults,
+    });
+  } else {
+    resolved = resolveWorkerModel({
+      profile: baseProfile,
+      config: cfg,
+      providers: providersRes.providers,
+      providerDefaults: providersRes.defaults,
+    });
+  }
+
+  const modelPolicy = worker?.modelPolicy ?? (op === "worker.model.set" ? "sticky" : "dynamic");
+  const respawn = worker?.respawn === true;
+  const nextProfile = { ...instance.profile, model: resolved.resolvedModel };
+
+  if (respawn) {
+    const stopped = await stopWorker(workerId);
+    if (!stopped) return { ok: false, error: `Failed to stop worker "${workerId}" for respawn.` };
+
+    const { basePort, timeout } = context.spawnDefaults;
+    const spawned = await spawnWorker(nextProfile, {
+      basePort,
+      timeout,
+      directory: instance.directory ?? context.directory,
+      client,
+      parentSessionId: instance.parentSessionId ?? sessionId,
+    });
+    spawned.profile = { ...spawned.profile, model: resolved.resolvedModel };
+    spawned.modelRef = resolved.modelRef;
+    spawned.modelPolicy = modelPolicy;
+    spawned.modelResolution = resolved.reason;
+    return {
+      ok: true,
+      response: JSON.stringify(
+        {
+          workerId: spawned.profile.id,
+          modelRef: resolved.modelRef,
+          model: resolved.resolvedModel,
+          modelPolicy,
+          modelResolution: resolved.reason,
+          respawned: true,
+        },
+        null,
+        2
+      ),
+    };
+  }
+
+  instance.profile = nextProfile;
+  instance.modelRef = resolved.modelRef;
+  instance.modelPolicy = modelPolicy;
+  instance.modelResolution = resolved.reason;
+  return {
+    ok: true,
+    response: JSON.stringify(
+      {
+        workerId: instance.profile.id,
+        modelRef: resolved.modelRef,
+        model: resolved.resolvedModel,
+        modelPolicy,
+        modelResolution: resolved.reason,
+        respawned: false,
+      },
+      null,
+      2
+    ),
+  };
+}
+
 async function ensureWorkerForTask(
   context: OrchestratorContext,
   input: { workerId: string; autoSpawn: boolean; sessionId?: string }
@@ -237,9 +351,11 @@ export function createTaskTools(context: OrchestratorContext): TaskTools {
       workflowId: tool.schema.string().optional().describe("Workflow id when kind=workflow (e.g. 'roocode-boomerang')"),
       continueRunId: tool.schema.string().optional().describe("Continue a paused workflow run by runId (kind=workflow only)"),
       op: tool.schema
-        .enum(["memory.put", "memory.link", "memory.done"])
+        .enum(["memory.put", "memory.link", "memory.done", "worker.model.set", "worker.model.reset"])
         .optional()
-        .describe("Operation id when kind=op (memory.put/memory.link/memory.done)"),
+        .describe(
+          "Operation id when kind=op (memory.put/memory.link/memory.done/worker.model.set/worker.model.reset)"
+        ),
       memory: tool.schema
         .object({
           taskId: tool.schema.string().optional(),
@@ -265,6 +381,15 @@ export function createTaskTools(context: OrchestratorContext): TaskTools {
         })
         .optional()
         .describe("Memory op payload when kind=op"),
+      worker: tool.schema
+        .object({
+          workerId: tool.schema.string().optional(),
+          model: tool.schema.string().optional(),
+          modelPolicy: tool.schema.enum(["dynamic", "sticky"]).optional(),
+          respawn: tool.schema.boolean().optional(),
+        })
+        .optional()
+        .describe("Worker model op payload when kind=op"),
       attachments: tool.schema
         .array(
           tool.schema.object({
@@ -409,7 +534,9 @@ export function createTaskTools(context: OrchestratorContext): TaskTools {
               return;
             }
 
-            const result = await runMemoryOp(context, op, args.memory);
+            const result = isMemoryOp(op)
+              ? await runMemoryOp(context, op, args.memory)
+              : await runWorkerModelOp(context, op, args.worker, sessionId);
             if (result.ok && result.response) workerJobs.setResult(job.id, { responseText: result.response });
             else workerJobs.setError(job.id, { error: result.error ?? "op failed" });
             return;

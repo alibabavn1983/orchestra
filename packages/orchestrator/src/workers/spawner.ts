@@ -15,6 +15,7 @@ import {
   cleanupDeadServerWorkers,
 } from "./backends/server";
 import type { SendToWorkerOptions } from "./send";
+import { isFullModelID } from "../models/catalog";
 
 function resolveWorkerBackend(profile: WorkerProfile): WorkerBackend {
   if (profile.kind === "server") return "server";
@@ -65,10 +66,15 @@ export async function sendToWorker(
     return { success: false, error: `Worker "${workerId}" not found` };
   }
   const backend = resolveWorkerBackend(instance.profile);
+  const stickyModel = instance.modelPolicy === "sticky" ? instance.profile.model?.trim() : undefined;
+  const resolvedModel =
+    options?.model ??
+    (stickyModel && (backend === "agent" || isFullModelID(stickyModel)) ? stickyModel : undefined);
+  const nextOptions = resolvedModel ? { ...(options ?? {}), model: resolvedModel } : options;
   if (backend === "agent") {
-    return sendToAgentWorker(workerId, message, options);
+    return sendToAgentWorker(workerId, message, nextOptions);
   }
-  return sendToServerWorker(workerId, message, options);
+  return sendToServerWorker(workerId, message, nextOptions);
 }
 
 export async function spawnWorkers(
