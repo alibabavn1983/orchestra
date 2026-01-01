@@ -31,6 +31,7 @@ import { loadPromptFile } from "./prompts/load";
 import { createOrchestratorContext } from "./context/orchestrator-context";
 import { createWorkflowTriggers } from "./workflows/triggers";
 import { startEventPublisher } from "./ux/event-publisher";
+import { injectSessionNotice } from "./ux/wakeup";
 import {
   buildSkillCompletedPayload,
   buildSkillPermissionPayload,
@@ -40,6 +41,11 @@ import {
 import { getWorkflowContextForSession } from "./skills/context";
 import { publishOrchestratorEvent } from "./core/orchestrator-events";
 import { workerJobs } from "./core/jobs";
+import { buildLegacyToolCorrectionHint, buildPendingTaskReminder, needsLegacyToolCorrection } from "./core/guardrails";
+import {
+  buildDefaultOrchestratorPluginToolOverrides,
+  DEFAULT_ORCHESTRATOR_AGENT_TOOL_FLAGS,
+} from "./core/tool-defaults";
 
 export const OrchestratorPlugin: Plugin = async (ctx) => {
   // CRITICAL: Prevent recursive spawning - if this is a worker process, skip orchestrator initialization
@@ -62,7 +68,7 @@ export const OrchestratorPlugin: Plugin = async (ctx) => {
   setSpawnDefaults({ basePort: config.basePort, timeout: config.startupTimeout });
   setProfiles(config.profiles);
   setUiDefaults({ defaultListFormat: config.ui?.defaultListFormat });
-  setLoggerConfig({});
+  setLoggerConfig({ enabled: true });
   setWorkflowConfig(config.workflows);
   setSecurityConfig(config.security);
   loadWorkflows(config);
@@ -343,16 +349,12 @@ export const OrchestratorPlugin: Plugin = async (ctx) => {
         const prior = (existing[name] ?? {}) as Record<string, unknown>;
         const priorTools = (prior as any)?.tools;
         const priorPermission = (prior as any)?.permission;
-        const defaultTaskTools = new Set(["task_start", "task_await", "task_peek", "task_list", "task_cancel"]);
-        const pluginToolOverrides = Object.fromEntries(
-          Object.keys(coreOrchestratorTools).map((id) => [id, defaultTaskTools.has(id)])
+        const pluginToolOverrides = buildDefaultOrchestratorPluginToolOverrides(
+          Object.keys(coreOrchestratorTools)
         );
         const agentTools = config.agent?.tools ?? {
           // Keep the orchestrator focused on delegation (workers do the actual work).
-          bash: false,
-          edit: false,
-          skill: false,
-          webfetch: false,
+          ...DEFAULT_ORCHESTRATOR_AGENT_TOOL_FLAGS,
 
           // Boil orchestrator plugin tools down to the async Task API by default.
           ...pluginToolOverrides,
@@ -442,7 +444,12 @@ export const OrchestratorPlugin: Plugin = async (ctx) => {
 
       const passthrough = getPassthrough(sessionId);
       if (passthrough && agent === orchestratorAgentName) {
-        output.system.push(buildPassthroughSystemPrompt(passthrough.workerId));
+        output.system.push(await buildPassthroughSystemPrompt(passthrough.workerId));
+      }
+
+      if (agent === orchestratorAgentName) {
+        const reminder = buildPendingTaskReminder(sessionId);
+        if (reminder) output.system.push(reminder);
       }
 
       if (config.memory?.enabled !== false && config.memory?.autoInject !== false) {
@@ -465,7 +472,6 @@ export const OrchestratorPlugin: Plugin = async (ctx) => {
       await pruneTransform(input as any, output as any);
     },
     "chat.message": async (input, output) => {
-
       // Passthrough auto-exit (server-side): if the user issues an exit command, disable passthrough for this session.
       const role = typeof (input as any)?.role === "string" ? String((input as any).role) : undefined;
       if (role === "user") {
@@ -479,6 +485,21 @@ export const OrchestratorPlugin: Plugin = async (ctx) => {
           if (isPassthroughExitMessage(text)) {
             clearPassthrough(input.sessionID);
             void showToast("Passthrough disabled", "info");
+          }
+        }
+      }
+
+      if (role === "assistant") {
+        const agentId = typeof (input as any)?.agent === "string" ? String((input as any).agent) : undefined;
+        if (agentId === orchestratorAgentName) {
+          const parts = Array.isArray(output.parts) ? output.parts : [];
+          const text = parts
+            .filter((p: any) => p?.type === "text" && typeof p.text === "string")
+            .map((p: any) => p.text)
+            .join("\n");
+          const sessionId = (input as any)?.sessionID as string | undefined;
+          if (sessionId && needsLegacyToolCorrection(text)) {
+            void injectSessionNotice(orchestratorContext, sessionId, buildLegacyToolCorrectionHint());
           }
         }
       }

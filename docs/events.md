@@ -128,6 +128,29 @@ Workflow step completed.
 }
 ```
 
+### `orchestra.workflow.carry.trimmed`
+
+Workflow carry was trimmed to respect `maxCarryChars`.
+
+```json
+{
+  "version": 1,
+  "id": "evt_...",
+  "type": "orchestra.workflow.carry.trimmed",
+  "timestamp": 1730000000000,
+  "data": {
+    "runId": "run-...",
+    "workflowId": "roocode-boomerang",
+    "workflowName": "RooCode Boomerang",
+    "stepId": "implement",
+    "stepTitle": "Implement",
+    "maxCarryChars": 24000,
+    "droppedBlocks": 1,
+    "truncatedSections": ["Artifacts", "Risks"]
+  }
+}
+```
+
 ### `orchestra.workflow.completed`
 
 Workflow run completed.

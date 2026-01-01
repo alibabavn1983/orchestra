@@ -259,6 +259,7 @@ export function createOpenCodeActions({ client, state, setState }: ActionDeps) {
         durationMs,
         response: typeof data.response === "string" ? data.response : undefined,
         responseTruncated: typeof data.responseTruncated === "boolean" ? data.responseTruncated : undefined,
+        warning: typeof data.warning === "string" ? data.warning : undefined,
         error: typeof data.error === "string" ? data.error : undefined,
       };
 
@@ -279,6 +280,59 @@ export function createOpenCodeActions({ client, state, setState }: ActionDeps) {
           const index = steps.findIndex((item) => item.stepId === step.stepId);
           if (index >= 0) steps[index] = step;
           else steps.push(step);
+          existing.steps = steps;
+          s.workflowRuns[runId] = existing;
+        }),
+      );
+      return;
+    }
+
+    if (event.type === "orchestra.workflow.carry.trimmed") {
+      const stepId = typeof data.stepId === "string" ? data.stepId : "";
+      if (!stepId) return;
+      const droppedBlocks = typeof data.droppedBlocks === "number" ? data.droppedBlocks : 0;
+      const truncatedSections = Array.isArray(data.truncatedSections)
+        ? data.truncatedSections.map((item) => String(item))
+        : [];
+      const maxCarryChars = typeof data.maxCarryChars === "number" ? data.maxCarryChars : 0;
+
+      setState(
+        produce((s) => {
+          const existing =
+            s.workflowRuns[runId] ??
+            ({
+              runId,
+              workflowId,
+              workflowName,
+              status: "running",
+              startedAt: event.timestamp,
+              steps: [],
+            } satisfies WorkflowRun);
+
+          const steps = existing.steps ?? [];
+          const index = steps.findIndex((item) => item.stepId === stepId);
+          const current =
+            index >= 0
+              ? steps[index]
+              : ({
+                  stepId,
+                  stepTitle: typeof data.stepTitle === "string" ? data.stepTitle : undefined,
+                  workerId: typeof data.workerId === "string" ? data.workerId : "unknown",
+                  status: "success",
+                  startedAt: event.timestamp,
+                  finishedAt: event.timestamp,
+                  durationMs: 0,
+                } satisfies WorkflowRunStep);
+
+          current.carryTrim = {
+            droppedBlocks,
+            truncatedSections,
+            maxCarryChars,
+            at: event.timestamp,
+          };
+
+          if (index >= 0) steps[index] = current;
+          else steps.push(current);
           existing.steps = steps;
           s.workflowRuns[runId] = existing;
         }),

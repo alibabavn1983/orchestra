@@ -53,4 +53,50 @@ describe("workflow events", () => {
     expect(step?.data?.runId).toBe(run.runId);
     expect(completed?.data?.runId).toBe(run.runId);
   });
+
+  test("emits carry trimmed event when carry exceeds limits", async () => {
+    registerTestWorkflow("unit-carry-trimmed", [
+      { id: "s1", title: "Step 1", workerId: "coder", prompt: "Do 1", carry: true },
+      { id: "s2", title: "Step 2", workerId: "architect", prompt: "Carry: {carry}", carry: false },
+    ]);
+
+    const events: Array<{ type: string; data: any }> = [];
+    const off = onOrchestratorEvent((event) => {
+      if (event.type.startsWith("orchestra.workflow")) {
+        events.push({ type: event.type, data: event.data });
+      }
+    });
+
+    const longArtifacts = Array.from({ length: 40 }, (_, i) => `- file-${i}.ts`).join("\n");
+    const response = [
+      "## Summary",
+      "- Did the thing",
+      "",
+      "## Actions",
+      "- Action A",
+      "",
+      "## Artifacts",
+      longArtifacts,
+      "",
+      "## Risks",
+      "- None",
+      "",
+      "## Next",
+      "- Review",
+    ].join("\n");
+
+    await runWorkflowWithDependencies(
+      { workflowId: "unit-carry-trimmed", task: "do", limits: { ...limits, maxCarryChars: 300 } },
+      {
+        resolveWorker: async (workerId) => workerId,
+        sendToWorker: async () => ({ success: true, response }),
+      }
+    );
+
+    off();
+
+    const trimmed = events.find((e) => e.type === "orchestra.workflow.carry.trimmed");
+    expect(trimmed).toBeTruthy();
+    expect(trimmed?.data?.workflowId).toBe("unit-carry-trimmed");
+  });
 });

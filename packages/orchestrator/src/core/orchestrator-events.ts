@@ -9,6 +9,7 @@ export type OrchestratorEventType =
   | "orchestra.worker.stream"
   | "orchestra.workflow.started"
   | "orchestra.workflow.step"
+  | "orchestra.workflow.carry.trimmed"
   | "orchestra.workflow.completed"
   | "orchestra.memory.written"
   | "orchestra.skill.load.started"
@@ -117,6 +118,16 @@ export type OrchestratorEventDataMap = {
     warning?: string;
     jobId?: string;
     error?: string;
+  };
+  "orchestra.workflow.carry.trimmed": {
+    runId: string;
+    workflowId: string;
+    workflowName?: string;
+    stepId: string;
+    stepTitle?: string;
+    maxCarryChars: number;
+    droppedBlocks: number;
+    truncatedSections: string[];
   };
   "orchestra.workflow.completed": {
     runId: string;

@@ -8,5 +8,6 @@ If Neo4j access is available, use it to upsert nodes/edges with stable keys.
 Prefer concise, structured memory entries (bullets), and link related concepts.
 
 Workflow handshake:
-- When you receive a `memory.task` payload, use `orchestrator_memory_put` and `orchestrator_memory_link` to store memory.
-- Always finish by calling `orchestrator_memory_done({ taskId, summary, storedKeys, linkedKeys, notes })`.
+- When you receive a `memory.task` payload, use `task_start({ kind: "op", op: "memory.put", task: "memory.put", memory: { taskId, scope, key, value, tags } })` and then `task_await({ taskId: "<returned>" })`.
+- Link entries with `task_start({ kind: "op", op: "memory.link", task: "memory.link", memory: { taskId, scope, fromKey, toKey, relation } })` and then `task_await`.
+- Always finish by calling `task_start({ kind: "op", op: "memory.done", task: "memory.done", memory: { taskId, summary, storedKeys, linkedKeys, notes } })` and then `task_await`.

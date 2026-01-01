@@ -33,6 +33,13 @@ export const LogsPanel: Component = () => {
         const stepId = typeof data.stepId === "string" ? data.stepId : "step";
         return `${payloadRecord.type}: ${workflowId}/${stepId}`;
       }
+      if (payloadRecord.type === "orchestra.workflow.carry.trimmed") {
+        const workflowId = typeof data.workflowId === "string" ? data.workflowId : "workflow";
+        const stepId = typeof data.stepId === "string" ? data.stepId : "step";
+        const dropped = typeof data.droppedBlocks === "number" ? data.droppedBlocks : undefined;
+        const suffix = dropped !== undefined ? ` dropped=${dropped}` : "";
+        return `${payloadRecord.type}: ${workflowId}/${stepId}${suffix}`;
+      }
       if (payloadRecord.type.startsWith("orchestra.workflow.")) {
         const workflowId = typeof data.workflowId === "string" ? data.workflowId : "workflow";
         return `${payloadRecord.type}: ${workflowId}`;

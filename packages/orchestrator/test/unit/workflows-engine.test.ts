@@ -71,6 +71,7 @@ describe("workflow engine unit", () => {
     expect(result.steps[1]?.status).toBe("success");
     expect(result.currentStepIndex).toBe(2);
     expect(prompts[1]).toContain("### Step One");
+    expect(prompts[1]).toContain("#### Summary");
     expect(prompts[1]).toContain("STEP_ONE_OK");
     expect(attachmentsSeen[0]).toBeTruthy();
     expect(attachmentsSeen[1]).toBeUndefined();
@@ -185,5 +186,65 @@ describe("workflow engine unit", () => {
         }
       )
     ).rejects.toThrow("maxSteps=1");
+  });
+
+  test("carries only schema sections and truncates oversized carry", async () => {
+    registerTestWorkflow("unit-flow-carry-schema", [
+      {
+        id: "step-one",
+        title: "Step One",
+        workerId: "coder",
+        prompt: "Task: {task}",
+        carry: true,
+      },
+      {
+        id: "step-two",
+        title: "Step Two",
+        workerId: "architect",
+        prompt: "Carry:\n{carry}",
+        carry: false,
+      },
+    ]);
+
+    const longArtifacts = Array.from({ length: 50 }, (_, i) => `- file-${i}.ts`).join("\n");
+    const response = [
+      "## Summary",
+      "- Did the thing",
+      "",
+      "## Actions",
+      "- Took action A",
+      "",
+      "## Artifacts",
+      longArtifacts,
+      "",
+      "## Risks",
+      "- None",
+      "",
+      "## Next",
+      "- Review changes",
+    ].join("\n");
+
+    const prompts: string[] = [];
+    await runWorkflow(
+      {
+        workflowId: "unit-flow-carry-schema",
+        task: "do the thing",
+        limits: { ...limits, maxCarryChars: 400 },
+      },
+      {
+        resolveWorker: async (workerId) => workerId,
+        sendToWorker: async (_workerId, message) => {
+          prompts.push(message);
+          return { success: true, response };
+        },
+      }
+    );
+
+    expect(prompts[1]).toContain("#### Summary");
+    expect(prompts[1]).toContain("#### Artifacts");
+    expect(prompts[1]).toContain("#### Risks");
+    expect(prompts[1]).toContain("#### Next");
+    expect(prompts[1]).not.toContain("#### Actions");
+    expect(prompts[1]).toContain("...(truncated)");
   });
 });

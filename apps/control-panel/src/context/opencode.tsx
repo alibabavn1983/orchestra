@@ -29,6 +29,7 @@ export type {
   SkillLoadEvent,
   WorkerRuntime,
   WorkerStreamChunk,
+  WorkflowCarryTrim,
   WorkflowRun,
 } from "./opencode-types";
 

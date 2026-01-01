@@ -7,6 +7,8 @@ import type {
   WorkflowStepResult,
 } from "./types";
 import { publishOrchestratorEvent } from "../core/orchestrator-events";
+import { logger } from "../core/logger";
+import { expandPromptSnippets } from "../prompts/load";
 
 const workflows = new Map<string, WorkflowDefinition>();
 
@@ -39,10 +41,174 @@ function applyTemplate(template: string, vars: Record<string, string>): string {
   return out;
 }
 
-function appendCarry(existing: string, next: string, maxChars: number): string {
-  const combined = existing ? `${existing}\n\n${next}` : next;
-  if (combined.length <= maxChars) return combined;
-  return combined.slice(combined.length - maxChars);
+const handoffSections = ["Summary", "Actions", "Artifacts", "Risks", "Next"] as const;
+const carrySections = ["Summary", "Artifacts", "Risks", "Next"] as const;
+type HandoffSection = (typeof handoffSections)[number];
+type CarrySection = (typeof carrySections)[number];
+const handoffSectionMap = new Map(handoffSections.map((section) => [section.toLowerCase(), section]));
+const carrySectionCaps: Record<CarrySection, number> = {
+  Summary: 900,
+  Artifacts: 1600,
+  Risks: 900,
+  Next: 900,
+};
+
+function normalizeSectionName(value: string): HandoffSection | undefined {
+  return handoffSectionMap.get(value.trim().toLowerCase());
+}
+
+function extractHandoffSections(text: string): Record<HandoffSection, string> {
+  const sections: Record<HandoffSection, string[]> = {
+    Summary: [],
+    Actions: [],
+    Artifacts: [],
+    Risks: [],
+    Next: [],
+  };
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return {
+      Summary: "",
+      Actions: "",
+      Artifacts: "",
+      Risks: "",
+      Next: "",
+    };
+  }
+
+  const lines = trimmed.split(/\r?\n/);
+  let current: HandoffSection | undefined;
+  let sawHeading = false;
+  const headingRegex = /^\s*(#{1,3}\s*)?(Summary|Actions|Artifacts|Risks|Next)\s*:?\s*$/i;
+
+  for (const line of lines) {
+    const match = line.match(headingRegex);
+    if (match) {
+      const key = normalizeSectionName(match[2] ?? "");
+      if (key) {
+        current = key;
+        sawHeading = true;
+        continue;
+      }
+    }
+
+    if (current) sections[current].push(line);
+  }
+
+  const resolved: Record<HandoffSection, string> = {
+    Summary: sections.Summary.join("\n").trim(),
+    Actions: sections.Actions.join("\n").trim(),
+    Artifacts: sections.Artifacts.join("\n").trim(),
+    Risks: sections.Risks.join("\n").trim(),
+    Next: sections.Next.join("\n").trim(),
+  };
+
+  if (!sawHeading) {
+    resolved.Summary = trimmed;
+  } else if (!resolved.Summary && resolved.Actions) {
+    resolved.Summary = resolved.Actions;
+  }
+
+  return resolved;
+}
+
+function truncateText(text: string, maxChars: number): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  const suffix = "\n...(truncated)";
+  const sliceEnd = Math.max(0, maxChars - suffix.length);
+  return `${trimmed.slice(0, sliceEnd).trimEnd()}${suffix}`;
+}
+
+function compactCarrySections(
+  sections: Record<HandoffSection, string>,
+  maxCarryChars: number
+): { sections: Record<CarrySection, string>; truncatedSections: CarrySection[] } {
+  const totalCaps = Object.values(carrySectionCaps).reduce((sum, value) => sum + value, 0);
+  const scale = Math.min(1, maxCarryChars / (totalCaps + 200));
+  const compacted = {} as Record<CarrySection, string>;
+  const truncatedSections: CarrySection[] = [];
+
+  for (const section of carrySections) {
+    const baseCap = carrySectionCaps[section];
+    const cap = Math.max(60, Math.floor(baseCap * scale));
+    const content = sections[section] ?? "";
+    if (content.length > cap) truncatedSections.push(section);
+    compacted[section] = content ? truncateText(content, cap) : "";
+  }
+
+  return { sections: compacted, truncatedSections };
+}
+
+function formatCarryBlock(
+  stepTitle: string,
+  responseText: string,
+  maxCarryChars: number
+): { text: string; truncated: boolean; truncatedSections: CarrySection[] } {
+  const sections = extractHandoffSections(responseText);
+  const compacted = compactCarrySections(sections, maxCarryChars);
+  const truncatedSections = [...compacted.truncatedSections];
+  let truncated = truncatedSections.length > 0;
+
+  const blocks = carrySections
+    .map((section) => {
+      const content = compacted.sections[section];
+      if (!content) return "";
+      return `#### ${section}\n${content}`;
+    })
+    .filter(Boolean);
+
+  if (blocks.length === 0) {
+    const fallback = truncateText(responseText, Math.max(240, Math.floor(maxCarryChars / 4)));
+    if (fallback.length < responseText.trim().length) truncated = true;
+    blocks.push(`#### Summary\n${fallback || "None"}`);
+  }
+
+  const block = `### ${stepTitle}\n${blocks.join("\n\n")}`;
+  if (block.length <= maxCarryChars) {
+    return { text: block, truncated, truncatedSections };
+  }
+
+  const reducedCap = Math.max(60, Math.floor(maxCarryChars / (blocks.length * 2)));
+  const reducedBlocks = blocks
+    .map((sectionBlock) => truncateText(sectionBlock, reducedCap))
+    .join("\n\n");
+  const reduced = `### ${stepTitle}\n${reducedBlocks}`;
+  truncated = true;
+  const finalText = reduced.length <= maxCarryChars ? reduced : truncateText(reduced, maxCarryChars);
+  return { text: finalText, truncated, truncatedSections };
+}
+
+function splitCarryBlocks(carry: string): string[] {
+  const trimmed = carry.trim();
+  if (!trimmed) return [];
+  if (!trimmed.includes("### ")) return [trimmed];
+  return trimmed.split(/\n(?=###\s)/g).map((block) => block.trim()).filter(Boolean);
+}
+
+function appendCarry(
+  existing: string,
+  next: string,
+  maxChars: number
+): { text: string; droppedBlocks: number; truncated: boolean } {
+  const blocks = [...splitCarryBlocks(existing), next].filter(Boolean);
+  if (blocks.length === 0) return { text: "", droppedBlocks: 0, truncated: false };
+
+  const originalCount = blocks.length;
+  while (blocks.join("\n\n").length > maxChars && blocks.length > 1) {
+    blocks.shift();
+  }
+
+  const combined = blocks.join("\n\n");
+  const droppedBlocks = Math.max(0, originalCount - blocks.length);
+  if (combined.length <= maxChars) {
+    return { text: combined, droppedBlocks, truncated: droppedBlocks > 0 };
+  }
+  return {
+    text: truncateText(combined, maxChars),
+    droppedBlocks,
+    truncated: true,
+  };
 }
 
 function truncateResponse(text: string, maxChars = 1200): { value: string; truncated: boolean } {
@@ -50,10 +216,9 @@ function truncateResponse(text: string, maxChars = 1200): { value: string; trunc
   return { value: text.slice(0, maxChars), truncated: true };
 }
 
-function buildStepPrompt(step: WorkflowStepDefinition, task: string, carry: string): string {
+async function buildStepPrompt(step: WorkflowStepDefinition, task: string, carry: string): Promise<string> {
   const base = applyTemplate(step.prompt, { task, carry });
-  if (!step.carry || !carry) return base;
-  return base;
+  return await expandPromptSnippets(base);
 }
 
 function resolveStepTimeout(step: WorkflowStepDefinition, limits: WorkflowRunInput["limits"]): number {
@@ -93,7 +258,7 @@ export async function executeWorkflowStep(
   const step = input.workflow.steps[input.stepIndex];
   const stepStarted = Date.now();
   const workerId = await deps.resolveWorker(step.workerId, input.autoSpawn);
-  const prompt = buildStepPrompt(step, input.task, input.carry);
+  const prompt = await buildStepPrompt(step, input.task, input.carry);
   const res = await deps.sendToWorker(workerId, prompt, {
     attachments: input.stepIndex === 0 ? input.attachments : undefined,
     timeoutMs: resolveStepTimeout(step, input.limits),
@@ -155,9 +320,36 @@ export async function executeWorkflowStep(
     ...(res.warning ? { warning: res.warning } : {}),
   });
 
-  const carryBlock = step.carry ? [`### ${step.title}`, response].join("\n") : "";
-  const nextCarry = step.carry ? appendCarry(input.carry, carryBlock, input.limits.maxCarryChars) : input.carry;
-  return { step: result, response, carry: nextCarry };
+  if (step.carry) {
+    const carryBlock = formatCarryBlock(step.title, response, input.limits.maxCarryChars);
+    const appended = appendCarry(input.carry, carryBlock.text, input.limits.maxCarryChars);
+
+    const trimmed =
+      carryBlock.truncated ||
+      appended.truncated ||
+      appended.droppedBlocks > 0;
+
+    if (trimmed) {
+      const trimmedSections = carryBlock.truncatedSections.join(", ") || "summary";
+      logger.warn(
+        `[workflow] carry trimmed run=${input.runId} step=${step.id} dropped=${appended.droppedBlocks} sections=${trimmedSections}`
+      );
+      publishOrchestratorEvent("orchestra.workflow.carry.trimmed", {
+        runId: input.runId,
+        workflowId: input.workflow.id,
+        workflowName: input.workflow.name,
+        stepId: step.id,
+        stepTitle: step.title,
+        maxCarryChars: input.limits.maxCarryChars,
+        droppedBlocks: appended.droppedBlocks,
+        truncatedSections: carryBlock.truncatedSections,
+      });
+    }
+
+    return { step: result, response, carry: appended.text };
+  }
+
+  return { step: result, response, carry: input.carry };
 }
 
 export async function runWorkflow(

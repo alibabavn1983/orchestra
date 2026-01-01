@@ -11,6 +11,10 @@ import type { WorkflowRunResult } from "../workflows/types";
 import { continueWorkflowWithContext, resolveWorkflowLimits, runWorkflowWithContext } from "../workflows/runner";
 import { getLogBuffer } from "../core/logger";
 import { fetchProviders, filterProviders, flattenProviders } from "../models/catalog";
+import { loadNeo4jConfigFromEnv } from "../memory/neo4j";
+import { linkMemory, upsertMemory, type MemoryScope } from "../memory/graph";
+import { completeMemoryTask, recordMemoryLink, recordMemoryPut } from "../memory/tasks";
+import { publishOrchestratorEvent } from "../core/orchestrator-events";
 
 type TaskTools = {
   taskStart: ToolDefinition;
@@ -25,6 +29,23 @@ type ToolAttachment = {
   path?: string;
   base64?: string;
   mimeType?: string;
+};
+
+type TaskOpKind = "memory.put" | "memory.link" | "memory.done";
+
+type MemoryOpPayload = {
+  taskId?: string;
+  scope?: "project" | "global";
+  key?: string;
+  value?: string;
+  tags?: string[];
+  fromKey?: string;
+  toKey?: string;
+  relation?: string;
+  summary?: string;
+  storedKeys?: string[];
+  linkedKeys?: Array<{ from: string; to: string; relation: string }>;
+  notes?: string;
 };
 
 function hasImageAttachment(attachments: ToolAttachment[] | undefined): boolean {
@@ -52,6 +73,109 @@ function pickWorkflowResponse(result: WorkflowRunResult): { success: boolean; re
     return { success: false, error: "workflow produced no response" };
   }
   return { success: true, response: responseStep.response };
+}
+
+function resolveMemoryScope(context: OrchestratorContext, input?: string): MemoryScope {
+  if (input === "project" || input === "global") return input;
+  return (context.config.memory?.scope ?? "project") as MemoryScope;
+}
+
+async function runMemoryOp(
+  context: OrchestratorContext,
+  op: TaskOpKind,
+  memory?: MemoryOpPayload
+): Promise<{ ok: boolean; response?: string; error?: string }> {
+  if (op === "memory.put") {
+    const cfg = loadNeo4jConfigFromEnv();
+    if (!cfg) {
+      return {
+        ok: false,
+        error:
+          "Neo4j is not configured. Set env vars: OPENCODE_NEO4J_URI, OPENCODE_NEO4J_USERNAME, OPENCODE_NEO4J_PASSWORD (and optional OPENCODE_NEO4J_DATABASE).",
+      };
+    }
+    const key = memory?.key?.trim();
+    const value = memory?.value?.trim();
+    if (!key || !value) return { ok: false, error: "Missing memory.key/memory.value for op memory.put." };
+
+    const scope = resolveMemoryScope(context, memory?.scope);
+    const projectId = scope === "project" ? context.projectId : undefined;
+    if (scope === "project" && !projectId) return { ok: false, error: "Missing projectId; restart OpenCode." };
+
+    const node = await upsertMemory({
+      cfg,
+      scope,
+      projectId,
+      key,
+      value,
+      tags: memory?.tags ?? [],
+    });
+
+    if (memory?.taskId) recordMemoryPut(memory.taskId, node.key);
+    publishOrchestratorEvent("orchestra.memory.written", {
+      action: "put",
+      scope,
+      projectId,
+      taskId: memory?.taskId,
+      key: node.key,
+      tags: memory?.tags ?? [],
+    });
+
+    return { ok: true, response: JSON.stringify(node, null, 2) };
+  }
+
+  if (op === "memory.link") {
+    const cfg = loadNeo4jConfigFromEnv();
+    if (!cfg) {
+      return {
+        ok: false,
+        error:
+          "Neo4j is not configured. Set env vars: OPENCODE_NEO4J_URI, OPENCODE_NEO4J_USERNAME, OPENCODE_NEO4J_PASSWORD (and optional OPENCODE_NEO4J_DATABASE).",
+      };
+    }
+    const fromKey = memory?.fromKey?.trim();
+    const toKey = memory?.toKey?.trim();
+    if (!fromKey || !toKey) return { ok: false, error: "Missing memory.fromKey/memory.toKey for op memory.link." };
+
+    const scope = resolveMemoryScope(context, memory?.scope);
+    const projectId = scope === "project" ? context.projectId : undefined;
+    if (scope === "project" && !projectId) return { ok: false, error: "Missing projectId; restart OpenCode." };
+
+    const relation = memory?.relation ?? "relates_to";
+    const res = await linkMemory({
+      cfg,
+      scope,
+      projectId,
+      fromKey,
+      toKey,
+      type: relation,
+    });
+
+    if (memory?.taskId) recordMemoryLink(memory.taskId, fromKey, toKey, relation);
+    publishOrchestratorEvent("orchestra.memory.written", {
+      action: "link",
+      scope,
+      projectId,
+      taskId: memory?.taskId,
+      fromKey,
+      toKey,
+      relation,
+    });
+
+    return { ok: true, response: JSON.stringify(res, null, 2) };
+  }
+
+  const taskId = memory?.taskId?.trim();
+  if (!taskId) return { ok: false, error: "Missing memory.taskId for op memory.done." };
+
+  const result = completeMemoryTask(taskId, {
+    summary: memory?.summary,
+    storedKeys: memory?.storedKeys,
+    linkedKeys: memory?.linkedKeys,
+    notes: memory?.notes,
+  });
+
+  return result.ok ? { ok: true, response: result.message } : { ok: false, error: result.message };
 }
 
 async function ensureWorkerForTask(
@@ -93,16 +217,45 @@ async function ensureWorkerForTask(
 export function createTaskTools(context: OrchestratorContext): TaskTools {
   const taskStart: ToolDefinition = tool({
     description:
-      "Start a background task (worker or workflow). Always returns a taskId; use task_await to get the result.",
+      "Start a background task (worker, workflow, or op). Always returns a taskId; use task_await to get the result.",
     args: {
       kind: tool.schema
-        .enum(["auto", "worker", "workflow"])
+        .enum(["auto", "worker", "workflow", "op"])
         .optional()
         .describe("Task kind (default: auto = pick a worker based on task/attachments)"),
-      task: tool.schema.string().describe("What to do (sent to the worker or workflow)"),
+      task: tool.schema.string().describe("What to do (sent to worker/workflow; for op use a short label)"),
       workerId: tool.schema.string().optional().describe("Worker id when kind=worker (e.g. 'docs', 'coder')"),
       workflowId: tool.schema.string().optional().describe("Workflow id when kind=workflow (e.g. 'roocode-boomerang')"),
       continueRunId: tool.schema.string().optional().describe("Continue a paused workflow run by runId (kind=workflow only)"),
+      op: tool.schema
+        .enum(["memory.put", "memory.link", "memory.done"])
+        .optional()
+        .describe("Operation id when kind=op (memory.put/memory.link/memory.done)"),
+      memory: tool.schema
+        .object({
+          taskId: tool.schema.string().optional(),
+          scope: tool.schema.enum(["project", "global"]).optional(),
+          key: tool.schema.string().optional(),
+          value: tool.schema.string().optional(),
+          tags: tool.schema.array(tool.schema.string()).optional(),
+          fromKey: tool.schema.string().optional(),
+          toKey: tool.schema.string().optional(),
+          relation: tool.schema.string().optional(),
+          summary: tool.schema.string().optional(),
+          storedKeys: tool.schema.array(tool.schema.string()).optional(),
+          linkedKeys: tool.schema
+            .array(
+              tool.schema.object({
+                from: tool.schema.string(),
+                to: tool.schema.string(),
+                relation: tool.schema.string(),
+              })
+            )
+            .optional(),
+          notes: tool.schema.string().optional(),
+        })
+        .optional()
+        .describe("Memory op payload when kind=op"),
       attachments: tool.schema
         .array(
           tool.schema.object({
@@ -132,7 +285,9 @@ export function createTaskTools(context: OrchestratorContext): TaskTools {
       const jobWorkerId =
         resolvedKind === "workflow"
           ? `workflow:${resolvedWorkflowId ?? (args.continueRunId ? "continue" : "unknown")}`
-          : (resolvedWorkerId ?? "worker:unknown");
+          : resolvedKind === "op"
+            ? `op:${args.op ?? "unknown"}`
+            : (resolvedWorkerId ?? "worker:unknown");
 
       const job = workerJobs.create({
         workerId: jobWorkerId,
@@ -237,6 +392,19 @@ export function createTaskTools(context: OrchestratorContext): TaskTools {
             return;
           }
 
+          if (resolvedKind === "op") {
+            const op = args.op as TaskOpKind | undefined;
+            if (!op) {
+              workerJobs.setError(job.id, { error: "Missing op for kind=op." });
+              return;
+            }
+
+            const result = await runMemoryOp(context, op, args.memory);
+            if (result.ok && result.response) workerJobs.setResult(job.id, { responseText: result.response });
+            else workerJobs.setError(job.id, { error: result.error ?? "op failed" });
+            return;
+          }
+
           const workerId = resolvedWorkerId;
           if (!workerId) {
             workerJobs.setError(job.id, { error: "Missing workerId." });
@@ -272,7 +440,9 @@ export function createTaskTools(context: OrchestratorContext): TaskTools {
           kind: resolvedKind,
           ...(resolvedKind === "workflow"
             ? { workflowId: resolvedWorkflowId, continueRunId: args.continueRunId }
-            : { workerId: resolvedWorkerId }),
+            : resolvedKind === "op"
+              ? { op: args.op }
+              : { workerId: resolvedWorkerId }),
           status: "running",
           next: "task_await",
         },

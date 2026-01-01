@@ -336,12 +336,7 @@ Model tags let you specify capabilities instead of specific models. Open Orchest
 
 ### Override Model for a Profile
 
-**Per-session override:**
-```
-set_profile_model({ profileId: "vision", model: "openai/gpt-4o" })
-```
-
-**Persistent override (in config):**
+**Override in config (recommended):**
 ```json
 {
   "profiles": [
@@ -356,7 +351,7 @@ set_profile_model({ profileId: "vision", model: "openai/gpt-4o" })
 ### See Available Models
 
 ```
-list_models
+task_list({ view: "models" })
 ```
 
 ---

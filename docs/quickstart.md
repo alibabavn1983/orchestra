@@ -64,3 +64,15 @@ http://localhost:5173/?url=http://remote-host:4096&skills=http://remote-host:409
 ```
 
 If you only have OpenCode running, omit `skills` and `events` and the UI will still load chat + sessions.
+
+## Default orchestrator tool budget (5)
+
+The orchestrator agent ships with a minimal Task API allowlist. Use these tools in examples and prompts:
+
+- `task_start`
+- `task_await`
+- `task_peek`
+- `task_list`
+- `task_cancel`
+
+See `docs/reference.md` and `tools.md` for details. Legacy tools exist for compatibility; avoid teaching models to use them.

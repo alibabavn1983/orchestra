@@ -20,6 +20,7 @@ const moduleDir = fileURLToPath(new URL(".", import.meta.url));
 const packageRoot = findPackageRoot(moduleDir);
 const promptsRoot = resolve(packageRoot, "prompts");
 const cache = new Map<string, string>();
+const snippetPattern = /\{\{\s*snippet:([a-z0-9._/-]+)\s*\}\}/gi;
 
 function resolvePromptPath(input: string): string {
   const cleaned = input.trim().replace(/\\/g, "/");
@@ -35,13 +36,52 @@ function resolvePromptPath(input: string): string {
   return resolved;
 }
 
-export async function loadPromptFile(relativePath: string): Promise<string> {
+async function expandSnippets(content: string, stack: Set<string>): Promise<string> {
+  const matches = [...content.matchAll(snippetPattern)];
+  if (matches.length === 0) return content;
+
+  const replacements = new Map<string, string>();
+  for (const match of matches) {
+    const raw = match[1]?.trim();
+    if (!raw) continue;
+    const snippetKey = raw.endsWith(".md") ? raw : `${raw}.md`;
+    if (replacements.has(raw)) continue;
+    const snippetPath = `snippets/${snippetKey}`;
+    const snippetContent = await loadPromptFileInternal(snippetPath, stack);
+    replacements.set(raw, snippetContent);
+  }
+
+  return content.replace(snippetPattern, (_, name: string) => {
+    const key = name?.trim();
+    return (key && replacements.get(key)) ?? "";
+  });
+}
+
+export async function expandPromptSnippets(content: string): Promise<string> {
+  return expandSnippets(content, new Set());
+}
+
+async function loadPromptFileInternal(relativePath: string, stack: Set<string>): Promise<string> {
   const key = relativePath;
   const cached = cache.get(key);
   if (cached) return cached;
 
+  if (stack.has(key)) {
+    throw new Error(`Prompt snippet cycle detected: ${[...stack, key].join(" -> ")}`);
+  }
+  stack.add(key);
+
   const path = resolvePromptPath(relativePath);
-  const content = await readFile(path, "utf8");
-  cache.set(key, content);
-  return content;
+  try {
+    const content = await readFile(path, "utf8");
+    const expanded = await expandSnippets(content, stack);
+    cache.set(key, expanded);
+    return expanded;
+  } finally {
+    stack.delete(key);
+  }
+}
+
+export async function loadPromptFile(relativePath: string): Promise<string> {
+  return loadPromptFileInternal(relativePath, new Set());
 }

@@ -9,7 +9,9 @@ const defaultSteps: WorkflowStepDefinition[] = [
     prompt:
       "You are the architect. Create a concise plan for the task.\n\n" +
       "Task:\n{task}\n\n" +
-      "Return a numbered checklist with 3-6 steps.",
+      "Return a numbered checklist with 3-6 steps.\n\n" +
+      "{{snippet:workflow-handoff-schema}}\n\n" +
+      "Guidance: Keep the plan tight. Put the checklist in Summary and make Next explicit.",
     carry: false,
   },
   {
@@ -20,7 +22,9 @@ const defaultSteps: WorkflowStepDefinition[] = [
       "You are the coder. Implement the plan for the task.\n\n" +
       "Task:\n{task}\n\n" +
       "Plan:\n{carry}\n\n" +
-      "Return what you changed and any important notes.",
+      "Return what you changed and any important notes.\n\n" +
+      "{{snippet:workflow-handoff-schema}}\n\n" +
+      "Guidance: Keep output concise. Artifacts must list files/commands. Next should guide review.",
     carry: true,
   },
   {
@@ -31,7 +35,9 @@ const defaultSteps: WorkflowStepDefinition[] = [
       "You are the reviewer. Check the implementation for correctness, edge cases, and missing tests.\n\n" +
       "Task:\n{task}\n\n" +
       "Implementation:\n{carry}\n\n" +
-      "Return issues and recommended fixes (or say 'no issues').",
+      "Return issues and recommended fixes (or say 'no issues').\n\n" +
+      "{{snippet:workflow-handoff-schema}}\n\n" +
+      "Guidance: Put issues in Risks and concrete fixes in Next.",
     carry: true,
   },
   {
@@ -41,7 +47,9 @@ const defaultSteps: WorkflowStepDefinition[] = [
     prompt:
       "Apply fixes based on the review. If no fixes are needed, say 'No changes needed' and restate the final output.\n\n" +
       "Task:\n{task}\n\n" +
-      "Review:\n{carry}",
+      "Review:\n{carry}\n\n" +
+      "{{snippet:workflow-handoff-schema}}\n\n" +
+      "Guidance: Artifacts should list changes. Next can be 'Done' if complete.",
     carry: true,
   },
 ];

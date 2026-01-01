@@ -253,7 +253,7 @@ export function resolveModelRef(
     };
   }
 
-  return { error: `Model "${raw}" not found. Run list_models({}) to see available models.` };
+  return { error: `Model "${raw}" not found. Run task_list({ view: "models" }) to see available models.` };
 }
 
 export function pickVisionModel(models: ModelCatalogEntry[]): ModelCatalogEntry | undefined {

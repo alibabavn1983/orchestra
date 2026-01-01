@@ -11,7 +11,7 @@ flowchart TD
   subgraph Orchestrator[Orchestrator Plugin]
     PLUG[packages/orchestrator]
     WF[Workflow engine]
-    MEM[Memory tools]
+    MEM[Memory ops]
     EVT[Orchestrator event stream]
   end
 
@@ -57,7 +57,7 @@ Worker profiles define the worker kind (`server`, `agent`, `subagent`) and execu
 - OpenCode loads the orchestrator plugin from `packages/orchestrator/dist/index.js` (desktop fallback: `src/index.ts`).
 - Agent/subagent workers run in-process; subagents are child sessions created via `session.fork` and appear in the OpenCode session list.
 - Server workers remain isolated `opencode serve` processes with their own sessions and tool bridge.
-- Workflow runs are step-gated using the configured execution/intervene policy; paused runs resume via `continue_workflow` with wakeup injection enabled.
+- Workflow runs are step-gated using the configured execution/intervene policy; paused runs resume via `task_start(kind="workflow", continueRunId: ...)` with wakeup injection enabled.
 - Control panel connects to OpenCode sessions/messages and to the orchestrator event stream for workers/workflows/memory.
 - Desktop spawns the OpenCode sidecar and injects connection URLs into `window.__OPENCODE__`.
 

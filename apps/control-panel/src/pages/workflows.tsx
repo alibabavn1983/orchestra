@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/input";
 import { useLayout } from "@/context/layout";
-import { useOpenCode } from "@/context/opencode";
+import { type WorkflowCarryTrim, useOpenCode } from "@/context/opencode";
 import { formatDuration, formatRelativeTime, truncate } from "@/lib/utils";
 
 type WorkflowDefinition = {
@@ -27,6 +27,23 @@ const extractText = (parts: TextPart[] | undefined): string => {
     .map((part) => part.text?.trim() ?? "")
     .filter(Boolean)
     .join("\n\n");
+};
+
+const formatCarryTrimTitle = (trim?: WorkflowCarryTrim): string | undefined => {
+  if (!trim) return undefined;
+  const parts: string[] = [];
+  if (trim.droppedBlocks > 0) parts.push(`dropped ${trim.droppedBlocks}`);
+  if (trim.truncatedSections.length > 0) parts.push(`sections: ${trim.truncatedSections.join(", ")}`);
+  if (trim.maxCarryChars > 0) parts.push(`max ${trim.maxCarryChars} chars`);
+  return parts.length > 0 ? parts.join(" | ") : undefined;
+};
+
+const parseJson = <T,>(value: string): T | null => {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
 };
 
 export const WorkflowsPage: Component = () => {
@@ -103,11 +120,16 @@ export const WorkflowsPage: Component = () => {
     try {
       const res = await client.session.command({
         path: { id: sessionId },
-        body: { command: "list_workflows", arguments: "--format json" },
+        body: { command: "task_list", arguments: "--view workflows --format json" },
       });
       const text = extractText(res.data?.parts as TextPart[] | undefined);
       setWorkflowRaw(text);
-      const parsed = text ? JSON.parse(text) : [];
+      const parsed = text ? parseJson<unknown>(text) : [];
+      if (!parsed && text) {
+        setAvailableWorkflows([]);
+        setWorkflowsError("Failed to parse workflow list.");
+        return;
+      }
       if (Array.isArray(parsed)) {
         setAvailableWorkflows(parsed as WorkflowDefinition[]);
         if (!selectedWorkflowId() && parsed.length > 0) {
@@ -149,13 +171,38 @@ export const WorkflowsPage: Component = () => {
     setRunOutput("");
     try {
       const safeTask = task().trim().replace(/"/g, '\\"');
-      const args = `--workflowId ${selectedWorkflowId()} --task "${safeTask}" --format json`;
-      const res = await client.session.command({
+      const args = `--kind workflow --workflowId ${selectedWorkflowId()} --task "${safeTask}"`;
+      const startRes = await client.session.command({
         path: { id: sessionId },
-        body: { command: "run_workflow", arguments: args },
+        body: { command: "task_start", arguments: args },
       });
-      const text = extractText(res.data?.parts as TextPart[] | undefined);
-      setRunOutput(text || "Workflow run completed.");
+      const startText = extractText(startRes.data?.parts as TextPart[] | undefined);
+      const startPayload = startText ? parseJson<{ taskId?: string }>(startText) : null;
+      const taskId = startPayload?.taskId;
+      if (!taskId || typeof taskId !== "string") {
+        setRunError("Failed to start workflow task.");
+        setRunOutput(startText);
+        return;
+      }
+
+      const awaitRes = await client.session.command({
+        path: { id: sessionId },
+        body: { command: "task_await", arguments: `--taskId ${taskId}` },
+      });
+      const awaitText = extractText(awaitRes.data?.parts as TextPart[] | undefined);
+      const jobPayload = awaitText
+        ? parseJson<{ responseText?: string; error?: string; report?: { details?: string } }>(awaitText)
+        : null;
+      if (jobPayload?.responseText) {
+        setRunOutput(String(jobPayload.responseText));
+      } else if (jobPayload?.error) {
+        setRunError(String(jobPayload.error));
+        setRunOutput(awaitText);
+      } else if (jobPayload?.report?.details) {
+        setRunOutput(String(jobPayload.report.details));
+      } else {
+        setRunOutput(awaitText || "Workflow run completed.");
+      }
     } catch (err) {
       setRunError(err instanceof Error ? err.message : "Failed to run workflow.");
     } finally {
@@ -401,6 +448,26 @@ export const WorkflowsPage: Component = () => {
                                     <Show when={(skillsByStep().get(run.runId)?.get(step.stepId) ?? []).length > 3}>
                                       <span class="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
                                         +{(skillsByStep().get(run.runId)?.get(step.stepId) ?? []).length - 3}
+                                      </span>
+                                    </Show>
+                                  </div>
+                                </Show>
+                                <Show when={step.warning || step.carryTrim}>
+                                  <div class="mt-1 flex flex-wrap gap-1">
+                                    <Show when={step.warning}>
+                                      <span
+                                        class="rounded-full border border-status-error/40 px-2 py-0.5 text-[10px] text-status-error"
+                                        title={step.warning}
+                                      >
+                                        Warning
+                                      </span>
+                                    </Show>
+                                    <Show when={step.carryTrim}>
+                                      <span
+                                        class="rounded-full border border-status-busy/40 px-2 py-0.5 text-[10px] text-status-busy"
+                                        title={formatCarryTrimTitle(step.carryTrim)}
+                                      >
+                                        Carry trimmed
                                       </span>
                                     </Show>
                                   </div>

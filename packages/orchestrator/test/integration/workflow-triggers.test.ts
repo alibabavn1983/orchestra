@@ -6,7 +6,7 @@ import { registerWorkflow } from "../../src/workflows/engine";
 import { buildVisionWorkflow } from "../../src/workflows/builtins/vision";
 import { buildMemoryWorkflow } from "../../src/workflows/builtins/memory";
 import { createWorkflowTriggers } from "../../src/workflows/triggers";
-import { createMemoryAgentTools } from "../../src/memory/tools";
+import { createTaskTools } from "../../src/command/tasks";
 import { workerJobs } from "../../src/core/jobs";
 
 const baseConfig: OrchestratorConfig = {
@@ -88,7 +88,8 @@ describe("workflow triggers", () => {
     expect(captured?.workflowId).toBe("vision");
     expect(Array.isArray(captured?.attachments)).toBe(true);
     const combined = output.parts.map((p: any) => (p?.type === "text" ? p.text : "")).join("\n");
-    expect(combined.includes("[VISION ANALYSIS]")).toBe(true);
+    expect(combined.includes("[VISION ANALYSIS PENDING]")).toBe(true);
+    expect(combined.includes("task_await")).toBe(true);
   });
 
   test("memory trigger emits payload and accepts done ack", async () => {
@@ -143,8 +144,13 @@ describe("workflow triggers", () => {
     expect(payload.turn.decisions.length).toBe(1);
     expect(payload.turn.todos.length).toBe(1);
 
-    const tools = createMemoryAgentTools(context);
-    await tools.memoryDone.execute({ taskId: payload.taskId } as any, {} as any);
+    const tools = createTaskTools(context);
+    const started = await tools.taskStart.execute(
+      { kind: "op", op: "memory.done", task: "memory.done", memory: { taskId: payload.taskId } } as any,
+      {} as any
+    );
+    const opJob = JSON.parse(String(started));
+    await tools.taskAwait.execute({ taskId: opJob.taskId, timeoutMs: 5000 } as any, {} as any);
 
     const job = workerJobs.get(payload.taskId);
     expect(job?.status).toBe("succeeded");

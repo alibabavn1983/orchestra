@@ -33,7 +33,7 @@ bun test
 
 ## Conventions
 
-- Keep common paths at two levels deep (e.g., `src/command/workers.ts`).
+- Keep common paths at two levels deep (e.g., `src/command/tasks.ts`).
 - Prefer names that describe what a module is (e.g., `workers.ts`, `workflows.ts`).
 - Keep command/tool surface area in `src/command/` and runtime executables in `bin/`.
 - Update tests and docs when moving files.

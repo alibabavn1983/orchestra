@@ -18,6 +18,8 @@ export async function buildWorkerBootstrapPrompt(input: {
   directory?: string;
 }): Promise<string> {
   const { profile, directory } = input;
+  const resolvedKind = profile.kind ?? (profile.backend === "server" ? "server" : "agent");
+  const allowStreaming = resolvedKind === "server";
 
   let repoContextSection = "";
   if (profile.injectRepoContext && directory) {
@@ -28,11 +30,32 @@ export async function buildWorkerBootstrapPrompt(input: {
   }
 
   const profilePrompt = await resolveProfilePrompt(profile);
+  const outputContract = await loadPromptFile("snippets/worker-output-contract.md");
+  const streamingContract = allowStreaming
+    ? await loadPromptFile("snippets/worker-streaming-contract.md")
+    : "";
 
   const capabilitiesJson = JSON.stringify({
     vision: !!profile.supportsVision,
     web: !!profile.supportsWeb,
   });
+
+  const toolsSection = allowStreaming
+    ? `## Communication Tools Available\n\n` +
+      `You have these tools for communicating with the orchestrator:\n\n` +
+      `1. **stream_chunk** - Real-time streaming (RECOMMENDED for long responses)\n` +
+      `   - Call multiple times during your response to stream output progressively\n` +
+      `   - Each chunk is immediately shown to the user as you work\n` +
+      `   - Set final=true on the last chunk to indicate completion\n` +
+      `   - Include jobId if one was provided\n` +
+      `   - Example: stream_chunk({ chunk: "Analyzing the image...", jobId: "abc123" })\n`
+    : `## Communication Tools Available\n\n` +
+      `No streaming tools are available in this worker backend.\n`;
+
+  const behaviorSection =
+    `## Required Behavior\n\n` +
+    `${outputContract}` +
+    (allowStreaming ? `\n\n${streamingContract}` : "");
 
   return (
     (profilePrompt
@@ -44,19 +67,8 @@ export async function buildWorkerBootstrapPrompt(input: {
     `Your capabilities: ${capabilitiesJson}\n` +
     `</worker-identity>\n\n` +
     `<orchestrator-instructions>\n` +
-    `## Communication Tools Available\n\n` +
-    `You have these tools for communicating with the orchestrator:\n\n` +
-    `1. **stream_chunk** - Real-time streaming (RECOMMENDED for long responses)\n` +
-    `   - Call multiple times during your response to stream output progressively\n` +
-    `   - Each chunk is immediately shown to the user as you work\n` +
-    `   - Set final=true on the last chunk to indicate completion\n` +
-    `   - Include jobId if one was provided\n` +
-    `   - Example: stream_chunk({ chunk: "Analyzing the image...", jobId: "abc123" })\n\n` +
-    `## Required Behavior\n\n` +
-    `1. Always return a direct plain-text answer to the prompt.\n` +
-    `2. For long tasks, use stream_chunk to show progress (the user can see output in real-time).\n` +
-    `3. If you received a jobId in <orchestrator-job>, include it when streaming chunks.\n` +
-    `4. If bridge tools fail/unavailable, still return your answer in plain text.\n` +
+    `${toolsSection}\n\n` +
+    `${behaviorSection}\n` +
     `</orchestrator-instructions>`
   );
 }

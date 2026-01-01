@@ -1,10 +1,10 @@
 # Tool Reference
 
-This is a compact index of the orchestrator tools. Core tools are injected by default; the rest are available for power users and UI flows.
+This is a compact index of the orchestrator tools. The default orchestrator allowlist is the Task API only; see `tools.md` for the complete inventory and trim rationale.
 
-## Core tools (default)
+## Default orchestrator tool budget (5)
 
-Task API (recommended):
+These are the only tools enabled for the orchestrator agent by default:
 
 - `task_start` - Start a worker/workflow task (async; returns `taskId`)
 - `task_await` - Wait for a task to finish (returns final job record)
@@ -12,54 +12,36 @@ Task API (recommended):
 - `task_list` - List recent tasks
 - `task_cancel` - Cancel a running task (best-effort)
 
-Legacy worker lifecycle and routing:
+## Registered tool surface (5 total)
 
-- `spawn_worker` - Start a worker for a profile
-- `stop_worker` - Stop a running worker
-- `list_workers` - List active workers
-- `list_profiles` - List available profiles
-- `list_models` - List configured models from OpenCode
-- `ask_worker` - Send a message to a worker
-- `ask_worker_async` - Send a message and return a job id
-- `await_worker_job` - Wait for an async job
-- `get_worker_job` - Inspect a single job
-- `list_worker_jobs` - List recent jobs
-- `delegate_task` - Auto-route a task to the best worker
+These are the only tool IDs registered by the orchestrator plugin:
 
-Orchestrator visibility:
+- `task_start` - Start a worker/workflow/op task (async; returns `taskId`)
+- `task_await` - Wait for a task to finish (returns final job record)
+- `task_peek` - Inspect task status without waiting
+- `task_list` - List recent tasks (plus other views)
+- `task_cancel` - Cancel a running task (best-effort)
 
-- `orchestrator_status` - Show config and worker mappings
-- `orchestrator_output` - Jobs + log tail for recent activity
-- `orchestrator_results` - Inspect last worker outputs
-- `orchestrator_device_registry` - Device registry status
-- `orchestrator_diagnostics` - Process and memory diagnostics
-- `list_workflows` - List registered workflows
-- `run_workflow` - Run a workflow by id
+## Task primitives
 
-## UX tools
+Everything else is routed through the Task API:
 
-- `orchestrator_start` - Start docs worker, seed local docs, and enable passthrough
-- `orchestrator_demo` - Quickstart walkthrough
-- `orchestrator_dashboard` - Compact worker dashboard
-- `orchestrator_help` - Usage guide
-- `orchestrator_todo` - View orchestrator todo list
-- `enable_docs_passthrough` - Send user messages to docs worker
-- `worker_trace` - Trace recent worker activity
-- `orchestrator_keybinds_macos` - Fix macOS keybind defaults
-- `orchestrator.workflows` - Command shortcut for listing workflows
-- `orchestrator.boomerang` - Command shortcut for the RooCode boomerang workflow
+- `task_start` kinds: `worker`, `workflow`, `op` (plus `auto`)
+- `task_start` ops: `memory.put`, `memory.link`, `memory.done` (memory workflow writes)
+- `task_list` views: `tasks` (default), `workers`, `profiles`, `models`, `workflows`, `status`, `output`
 
-## Config tools
+Legacy tool IDs have been removed from registration; see `tools.md` for the historical list and replacements.
 
-- `set_profile_model` - Persist a model override for a profile
-- `reset_profile_models` - Clear saved profile overrides
-- `set_autospawn` - Set auto-spawn list and toggle
-- `set_orchestrator_agent` - Configure the injected orchestrator agent
-- `autofill_profile_models` - Save last-used models into profiles
+## Runtime guardrails (orchestrator self-correction)
 
-## Memory tools
+The orchestrator injects small runtime nudges to keep async flows on the Task API path:
 
-- `memory_put` - Store a memory entry
-- `memory_link` - Create a relationship between entries
-- `memory_search` - Query memory
-- `memory_recent` - List recent memory entries
+- Pending task reminders: when tasks are still running for the session, a system reminder includes the exact `task_await` call to use.
+- Legacy tool correction: when legacy tools or denied tool calls are detected, a session notice reminds the Task API path (`task_start` → `task_await`).
+- Carry trim warnings: if workflow carry is trimmed by `security.workflows.maxCarryChars`, a warning is recorded in the log buffer and emitted as `orchestra.workflow.carry.trimmed`.
+
+Use `task_list({ view: "output" })` to see the log buffer, or subscribe to the events stream (`docs/events.md`).
+
+## UX shortcuts
+
+The built-in command shortcuts (e.g., `orchestrator.status`, `orchestrator.output`) are now implemented via `task_list(...)` and do not require additional tool IDs.

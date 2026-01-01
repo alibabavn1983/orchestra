@@ -13,6 +13,16 @@ This plugin treats prompts as content files instead of inline strings. The orche
   - `explorer` -> `packages/orchestrator/prompts/workers/explorer.md`
   - `memory` -> `packages/orchestrator/prompts/workers/memory.md`
 
+## Prompt snippets
+
+Reusable prompt contracts live under `packages/orchestrator/prompts/snippets/`. Any prompt file can include them with:
+
+```
+{{snippet:async-contract}}
+```
+
+This keeps async and output rules consistent across orchestrator and worker surfaces.
+
 ## How prompts are selected
 
 - The orchestrator agent uses `packages/orchestrator/prompts/orchestrator.md` by default.

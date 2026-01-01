@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { delegateTask } from "../../src/command/workers";
+import { taskAwait, taskStart } from "../../src/command/tasks";
 import { setDirectory, setProfiles, setSpawnDefaults } from "../../src/command/state";
 import { shutdownAllWorkers } from "../../src/core/runtime";
 import type { WorkerProfile } from "../../src/types";
@@ -38,7 +38,7 @@ const profiles: Record<string, WorkerProfile> = {
   },
 };
 
-describe("delegateTask e2e", () => {
+describe("task_start auto e2e", () => {
   beforeAll(() => {
     setDirectory(process.cwd());
     setSpawnDefaults({ basePort: 0, timeout: 60_000 });
@@ -53,12 +53,18 @@ describe("delegateTask e2e", () => {
     "auto-spawns a worker and returns a real response",
     async () => {
       const ctx = { agent: "test", sessionID: "test-session", messageID: "msg" };
-      const result = await delegateTask.execute(
-        { task: "Reply with exactly: DELEGATE_OK", autoSpawn: true },
+      const started = await taskStart.execute(
+        { kind: "auto", task: "Reply with exactly: DELEGATE_OK", autoSpawn: true },
         ctx as any
       );
-      expect(String(result)).toContain("Delegated");
-      expect(String(result)).toContain("DELEGATE_OK");
+      const { taskId } = JSON.parse(String(started));
+      expect(typeof taskId).toBe("string");
+
+      const jobJson = await taskAwait.execute({ taskId, timeoutMs: 120_000 } as any, ctx as any);
+      const job = JSON.parse(String(jobJson));
+      expect(job.id).toBe(taskId);
+      expect(job.status).toBe("succeeded");
+      expect(job.responseText).toContain("DELEGATE_OK");
     },
     180_000
   );

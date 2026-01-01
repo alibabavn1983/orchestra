@@ -361,7 +361,9 @@ function formatStepFinishNotice(input: {
   lines.push("", "Next actions:");
   if (pause) {
     const retryNote = retry ? " (retries the failed step)" : "";
-    lines.push(`- \`continue_workflow({ runId: "${run.runId}" })\`${retryNote}`);
+    lines.push(
+      `- \`task_start({ kind: "workflow", continueRunId: "${run.runId}", task: "continue workflow" })\`${retryNote}`
+    );
   }
   if (showOpenCommand) {
     lines.push(`- \`orchestrator.open.${step.workerId}\``);
@@ -418,7 +420,7 @@ function createStepHook(context: OrchestratorContext, sessionId: string | undefi
     if (pause && context.client?.tui) {
       void context.client.tui
         .appendPrompt({
-          body: { text: `continue_workflow({ runId: "${run.runId}" })` },
+          body: { text: `task_start({ kind: "workflow", continueRunId: "${run.runId}", task: "continue workflow" })` },
           query: { directory: context.directory },
         })
         .catch(() => {});

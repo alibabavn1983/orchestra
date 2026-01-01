@@ -72,6 +72,7 @@ export type OrchestratorEventType =
   | "orchestra.workflow.started"
   | "orchestra.workflow.step"
   | "orchestra.workflow.completed"
+  | "orchestra.workflow.carry.trimmed"
   | "orchestra.memory.written"
   | "orchestra.skill.load.started"
   | "orchestra.skill.load.completed"
@@ -108,6 +109,13 @@ export type SkillLoadEvent = {
 
 export type WorkflowRunStatus = "running" | "success" | "error";
 
+export type WorkflowCarryTrim = {
+  droppedBlocks: number;
+  truncatedSections: string[];
+  maxCarryChars: number;
+  at: number;
+};
+
 export type WorkflowRunStep = {
   stepId: string;
   stepTitle?: string;
@@ -118,6 +126,8 @@ export type WorkflowRunStep = {
   durationMs: number;
   response?: string;
   responseTruncated?: boolean;
+  warning?: string;
+  carryTrim?: WorkflowCarryTrim;
   error?: string;
 };
 

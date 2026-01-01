@@ -2,6 +2,7 @@ import type { OrchestratorContext } from "../context/orchestrator-context";
 import { workerJobs } from "../core/jobs";
 import { normalizeForMemory } from "../memory/text";
 import { createMemoryTask, failMemoryTask, isMemoryTaskPending } from "../memory/tasks";
+import { loadPromptFile } from "../prompts/load";
 import { extractImages, formatVisionAnalysis, hasImages, replaceImagesWithAnalysis } from "../vision/analyzer";
 import { getWorkflow } from "./engine";
 import { resolveWorkflowLimits, runWorkflowWithContext } from "./runner";
@@ -105,11 +106,12 @@ function selectWorkflowWorker(context: OrchestratorContext, workflowId: string, 
   return workflow?.steps[0]?.workerId ?? fallback;
 }
 
-function buildVisionPlaceholder(
+async function buildVisionPlaceholder(
   workerName: string,
   workerModel: string,
   jobId: string
-): string {
+): Promise<string> {
+  const asyncContract = await loadPromptFile("snippets/async-contract.md");
   // Simple, clean markdown format that renders well in terminals
   return [
     `**[VISION ANALYSIS PENDING]**`,
@@ -123,6 +125,8 @@ function buildVisionPlaceholder(
     `\`\`\``,
     `task_await({ taskId: "${jobId}" })`,
     `\`\`\``,
+    ``,
+    asyncContract,
   ].join("\n");
 }
 
@@ -262,7 +266,7 @@ export function createWorkflowTriggers(context: OrchestratorContext, options: Wo
     // Inject placeholder immediately (like v0.2.3) so orchestrator can await the job
     const workerName = workerProfile?.name ?? "Vision Worker";
     const workerModel = workerProfile?.model ?? "vision model";
-    const placeholder = buildVisionPlaceholder(workerName, workerModel, job.id);
+    const placeholder = await buildVisionPlaceholder(workerName, workerModel, job.id);
 
     output.parts = replaceImagesWithAnalysis(originalParts, placeholder, {
       sessionID: sessionId,

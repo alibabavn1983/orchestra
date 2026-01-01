@@ -227,8 +227,16 @@ task_await({ taskId: "<taskId>" })
 Workflows run multi-step sequences with security limits:
 
 ```bash
-list_workflows({ format: "markdown" })
-run_workflow({ workflowId: "roocode-boomerang", task: "Implement the new workflow tools" })
+task_list({ view: "workflows", format: "markdown" })
+task_start({ kind: "workflow", workflowId: "roocode-boomerang", task: "Implement the new workflow tools" })
+task_await({ taskId: "<taskId>" })
+```
+
+Resume a paused run:
+
+```bash
+task_start({ kind: "workflow", continueRunId: "<runId>", task: "continue workflow" })
+task_await({ taskId: "<taskId>" })
 ```
 
 Command shortcuts:
@@ -251,11 +259,11 @@ Command shortcuts:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Starting: spawn_worker()
+    [*] --> Starting: task_start(kind="worker")
     Starting --> Ready: initialized
     Ready --> Busy: task assigned
     Busy --> Ready: task complete
-    Ready --> Stopped: stop_worker()
+    Ready --> Stopped: shutdown
     Busy --> Error: failure
     Error --> Ready: recovery
     Stopped --> [*]
@@ -284,18 +292,8 @@ stateDiagram-v2
 | `task_start` | Start a worker/workflow task (async; returns `taskId`) |
 | `task_await` | Wait for a task to finish (returns final job record) |
 | `task_peek` | Inspect task status without waiting |
-| `task_list` | List recent tasks |
+| `task_list` | List recent tasks (plus other views) |
 | `task_cancel` | Cancel a running task (best-effort) |
-| `spawn_worker` | Start a worker with a profile |
-| `ask_worker` | Send a message to a specific worker |
-| `delegate_task` | Auto-route task to the best worker |
-| `list_workers` | List running workers (use `workerId` for details) |
-| `stop_worker` | Stop a running worker |
-| `list_profiles` | Show available worker profiles |
-| `list_models` | Show available models from OpenCode config |
-| `orchestrator_status` | Show orchestrator config and status |
-| `list_workflows` | List registered workflows |
-| `run_workflow` | Run a workflow by id |
 
 ### Commands
 
@@ -337,8 +335,7 @@ opencode-orchestrator/
 │   ├── index.ts              # Plugin entry point
 │   ├── command/
 │   │   ├── index.ts          # Tool registry
-│   │   ├── workers.ts        # Worker commands
-│   │   └── workflows.ts      # Workflow commands
+│   │   └── tasks.ts          # Task API tools (5-tool surface)
 │   ├── config/
 │   │   ├── orchestrator.ts   # Config loading/merging
 │   │   └── profiles.ts       # Built-in worker profiles

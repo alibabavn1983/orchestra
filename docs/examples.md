@@ -456,45 +456,42 @@ export OPENCODE_NEO4J_PASSWORD=password
 
 ```
 # Store an architectural decision
-memory_put({ 
-  key: "architecture:database",
-  value: "We chose PostgreSQL over MongoDB because our data is highly relational. User->Orders->OrderItems requires strong referential integrity.",
-  tags: ["architecture", "database", "decision"],
-  scope: "project"
+task_start({
+  kind: "op",
+  op: "memory.put",
+  task: "memory.put",
+  memory: {
+    key: "architecture:database",
+    value: "We chose PostgreSQL over MongoDB because our data is highly relational. User->Orders->OrderItems requires strong referential integrity.",
+    tags: ["architecture", "database", "decision"],
+    scope: "project"
+  }
 })
+task_await({ taskId: "<taskId>" })
 
 # Store a coding convention
-memory_put({ 
-  key: "convention:error-handling",
-  value: "All API errors should use the ApiError class from src/utils/errors.js. Include error code, message, and optional details object.",
-  tags: ["convention", "error-handling"],
-  scope: "project"
+task_start({
+  kind: "op",
+  op: "memory.put",
+  task: "memory.put",
+  memory: {
+    key: "convention:error-handling",
+    value: "All API errors should use the ApiError class from src/utils/errors.js. Include error code, message, and optional details object.",
+    tags: ["convention", "error-handling"],
+    scope: "project"
+  }
 })
+task_await({ taskId: "<taskId>" })
 ```
 
 ### Retrieving Context
 
-```
-# Search for relevant memories
-memory_search({ 
-  query: "database",
-  limit: 5
-})
-
-# Get recent decisions
-memory_recent({ 
-  limit: 10,
-  scope: "project"
-})
-```
+Memory reads are injected automatically when `memory.autoInject` is enabled, or you can query Neo4j directly for ad-hoc lookup.
 
 ### Using Memory with Workers
 
 ```
-# First, retrieve context
-memory_search({ query: "error handling conventions" })
-
-# Then ask coder with that context
+# Include retrieved memory context in the task
 task_start({
   kind: "worker",
   workerId: "coder",

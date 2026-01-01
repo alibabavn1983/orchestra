@@ -51,7 +51,7 @@ async function _spawnWorkerCore(
       if (!modelSpec.includes("/")) {
         throw new Error(
           `Invalid model "${profile.model}". OpenCode models must be in "provider/model" format. ` +
-            `Run list_models({}) to see configured models and copy the full ID.`
+            `Run task_list({ view: "models" }) to see configured models and copy the full ID.`
         );
       }
       return profile;

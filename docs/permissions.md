@@ -45,6 +45,8 @@ The plugin injects an orchestrator agent with explicit tool booleans:
 
 This keeps the orchestrator focused on delegation rather than direct execution. Override with `agent.tools` or `agent.permission` in `orchestrator.json` if needed.
 
+The orchestrator agent is also limited to the Task API by default (`task_start`, `task_await`, `task_peek`, `task_list`, `task_cancel`). See `docs/reference.md` and `tools.md`.
+
 ## Worker tool policies
 
 Worker profiles can restrict tools via the `tools` map in their profile definition. Built-in defaults:
