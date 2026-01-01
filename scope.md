@@ -20,11 +20,11 @@ For step-by-step implementation with verification gates, see `tasks/task-00.md` 
 - Keep the registered tool surface unchanged: only `task_start`, `task_await`, `task_peek`, `task_list`, `task_cancel`.
 - No mocks in tests; use dependency injection and fakes.
 - Never delete tests.
-- Model selection must work from user-configured sources: OpenCode config (`model`, `small_model`), env-detected providers, and `/connect` API catalog providers with keys.
+- Model selection must work from user-configured sources: OpenCode config (`model`, `small_model`, provider models/options), env-detected providers, and `/connect` API catalog providers with keys.
 - Vision workers must not silently downgrade to non-vision models.
 - Any new user-facing behavior must be observable: `task_list` should show enough detail to debug model selection, and resolution must include a reason string.
 - Changes should be minimal and follow existing patterns in `packages/orchestrator`.
-- Execution discipline per task: run `bun run lint`, `bun run typecheck`, `bun run test:e2e`, `bun run build`, then commit + push before starting the next task.
+- Execution discipline per task: run `bun run lint`, `bun run typecheck`, `bun run test:e2e`, `bun run build`, fix any failures before continuing, then commit + push before starting the next task.
 
 ---
 
