@@ -96,7 +96,7 @@ describe("worker model ops", () => {
       } as any, toolContext as any)
     );
     const awaited = JSON.parse(await tools.taskAwait.execute({ taskId: started.taskId } as any, toolContext as any));
-    expect(awaited.status).toBe("completed");
+    expect(awaited.status).toBe("succeeded");
 
     const res = await sendToWorker(profile.id, "hello");
     expect(res.success).toBe(true);
@@ -144,7 +144,7 @@ describe("worker model ops", () => {
     const resetAwaited = JSON.parse(
       await tools.taskAwait.execute({ taskId: resetStarted.taskId } as any, toolContext as any)
     );
-    expect(resetAwaited.status).toBe("completed");
+    expect(resetAwaited.status).toBe("succeeded");
 
     const res = await sendToWorker(profile.id, "hello again");
     expect(res.success).toBe(true);

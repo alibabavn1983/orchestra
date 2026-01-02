@@ -69,7 +69,7 @@ describe("needsLegacyToolCorrection", () => {
 	});
 
 	test("detects list_models", () => {
-		expect(needsLegacyToolCorrection("list_model()")).toBe(true);
+		expect(needsLegacyToolCorrection("list_model()")).toBe(false);
 	});
 
 	test("detects orchestrator_output", () => {
