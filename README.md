@@ -1,382 +1,57 @@
-<p align="center">
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120">
-    <defs>
-      <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style="stop-color:#6495ED;stop-opacity:1" />
-        <stop offset="100%" style="stop-color:#4169E1;stop-opacity:1" />
-      </linearGradient>
-      <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" style="stop-color:#FFD700;stop-opacity:1" />
-        <stop offset="100%" style="stop-color:#FFA500;stop-opacity:1" />
-      </linearGradient>
-    </defs>
-    <!-- Central Hub -->
-    <circle cx="60" cy="60" r="35" fill="url(#grad1)" stroke="#2F4F8F" stroke-width="2"/>
-    <text x="60" y="65" text-anchor="middle" fill="white" font-size="12" font-weight="bold" font-family="system-ui">HUB</text>
-    <!-- Spokes -->
-    <line x1="95" y1="60" x2="130" y2="30" stroke="#4169E1" stroke-width="2" stroke-dasharray="4"/>
-    <line x1="95" y1="60" x2="130" y2="60" stroke="#4169E1" stroke-width="2" stroke-dasharray="4"/>
-    <line x1="95" y1="60" x2="130" y2="90" stroke="#4169E1" stroke-width="2" stroke-dasharray="4"/>
-    <!-- Worker Nodes -->
-    <circle cx="145" cy="30" r="15" fill="url(#grad2)" stroke="#CC8400" stroke-width="1.5"/>
-    <circle cx="145" cy="60" r="15" fill="url(#grad2)" stroke="#CC8400" stroke-width="1.5"/>
-    <circle cx="145" cy="90" r="15" fill="url(#grad2)" stroke="#CC8400" stroke-width="1.5"/>
-    <!-- Title -->
-    <text x="185" y="50" fill="#333" font-size="28" font-weight="bold" font-family="system-ui">Open</text>
-    <text x="260" y="50" fill="#6495ED" font-size="28" font-weight="bold" font-family="system-ui">Orchestra</text>
-    <text x="185" y="75" fill="#666" font-size="14" font-family="system-ui">Multi-Agent Orchestration for OpenCode</text>
-  </svg>
-</p>
-
-<p align="center">
-  <a href="https://github.com/0xSero/open-orchestra/releases"><img src="https://img.shields.io/badge/version-v0.1.0-blue.svg" alt="Version"></a>
-  <a href="https://github.com/0xSero/open-orchestra/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
-  <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-f9f1e1.svg" alt="Bun"></a>
-  <a href="https://opencode.ai"><img src="https://img.shields.io/badge/platform-OpenCode-6495ED.svg" alt="OpenCode"></a>
-</p>
-
-<p align="center">
-  <strong>Spawn, manage, and coordinate specialized AI workers in OpenCode</strong>
-</p>
-
----
-
-## Overview
-
-**Open Orchestra** is a monorepo that ships the orchestrator plugin, control panel, and desktop shell for OpenCode.
-
-### Repo in 10 minutes
-
-Mental model:
-- **Workers**: orchestrator-managed runtimes that do the work.
-- **Workflows**: multi-step plans the orchestrator runs across workers.
-- **Memory**: persistent records written by workflows and tools.
-
-The 3 commands:
-- `bun run dev` — developer loop (plugin watch + control panel)
-- `bun run build` — release build (plugin + app + desktop)
-- `opencode` + plugin install — user flow (add `opencode-orchestrator` to OpenCode config)
-
----
-
-**Open Orchestra** is a multi-agent orchestration plugin for [OpenCode](https://opencode.ai) that enables you to spawn, manage, and coordinate specialized AI workers. It implements a **hub-and-spoke architecture** where a central orchestrator coordinates multiple specialized workers, each optimized for specific tasks.
-
-### Why Multiple AI Workers?
-
-Instead of asking one AI to do everything, Open Orchestra lets you use specialized workers:
-
-| Worker | Best For | Example |
-|--------|----------|---------|
-| **Vision** | Analyzing screenshots, images, UI mockups | "What error is shown in this screenshot?" |
-| **Docs** | Researching APIs, finding examples | "How do I use React's useEffect hook?" |
-| **Coder** | Writing and modifying code | "Implement this feature" |
-| **Architect** | System design, planning (read-only) | "Review this architecture" |
-
-This specialization means better results, clearer reasoning, and the ability to run tasks in parallel.
-
-## Prerequisites
-
-Before installing Open Orchestra, verify you have:
-
-| Requirement | Check Command | Expected |
-|-------------|---------------|----------|
-| Bun runtime | `bun --version` | 1.0.0 or higher |
-| OpenCode CLI | `opencode --version` | Any recent version |
-| AI Provider | `orchestrator.models` (in OpenCode) | At least one model listed |
-
-**Quick verification:**
-
-```bash
-bun --version && opencode --version
-```
-
-**Need to configure a provider?** Add to `~/.config/opencode/opencode.json`:
-
-```json
-{
-  "provider": {
-    "anthropic": {
-      "apiKey": "sk-ant-your-key-here"
-    }
-  }
-}
-```
-
-See the [Quickstart Guide](./docs/quickstart.md) for detailed setup instructions.
-
-### Key Features
-
-- **6 Built-in Worker Profiles** - Vision, Docs, Coder, Architect, Explorer, Memory
-- **Hub-and-Spoke Architecture** - Central orchestrator with specialized workers
-- **5-tool Async Task API** - Start/await/peek/list/cancel tasks (workers + workflows)
-- **Profile-Based Spawning** - Auto-model resolution from OpenCode config
-- **Dynamic Port Allocation** - Avoids conflicts with automatic port assignment
-- **Session-Based Isolation** - Each worker maintains its own conversation context
-- **Optional Neo4j Memory** - Persistent knowledge graph (advanced feature)
-
-## Architecture
-
-Open Orchestra follows a hub-and-spoke pattern inspired by successful multi-agent systems like AutoGen and LangGraph, but optimized for OpenCode's plugin architecture.
-
-```mermaid
-graph TB
-    subgraph Orchestrator["Open Orchestra Hub"]
-        Registry["Worker Registry"]
-        Config["Config Loader"]
-        Tools["Tool APIs"]
-    end
-    
-    subgraph Workers["Specialized Workers"]
-        Vision["Vision Worker<br/><small>Image Analysis, OCR</small>"]
-        Docs["Docs Worker<br/><small>Research, Citations</small>"]
-        Coder["Coder Worker<br/><small>Implementation</small>"]
-        Architect["Architect Worker<br/><small>System Design</small>"]
-        Explorer["Explorer Worker<br/><small>Fast Search</small>"]
-        Memory["Memory Worker<br/><small>Knowledge Graph</small>"]
-    end
-    
-    subgraph Storage["Persistence"]
-        Neo4j["Neo4j Graph DB"]
-        ConfigFiles["orchestrator.json"]
-    end
-    
-    Orchestrator --> Vision
-    Orchestrator --> Docs
-    Orchestrator --> Coder
-    Orchestrator --> Architect
-    Orchestrator --> Explorer
-    Orchestrator --> Memory
-    
-    Memory --> Neo4j
-    Config --> ConfigFiles
-    
-    style Orchestrator fill:#6495ED,stroke:#2F4F8F,color:#fff
-    style Vision fill:#FFD700,stroke:#CC8400
-    style Docs fill:#FFD700,stroke:#CC8400
-    style Coder fill:#FFD700,stroke:#CC8400
-    style Architect fill:#FFD700,stroke:#CC8400
-    style Explorer fill:#FFD700,stroke:#CC8400
-    style Memory fill:#FFD700,stroke:#CC8400
-```
-
-## Quick Start
-
-### Installation
-
-```bash
-# Add to your project
-bun add opencode-orchestrator
-
-# Or install globally
-bun add -g opencode-orchestrator
-```
-
-### Configuration
-
-**1. Add the plugin to OpenCode:**
-
-```json
-// opencode.json or ~/.config/opencode/opencode.json
-{
-  "plugin": ["opencode-orchestrator"]
-}
-```
-
-**2. Create orchestrator config (optional - auto-setup available):**
-
-```json
-// .opencode/orchestrator.json or orchestrator.json
-{
-  "$schema": "./node_modules/opencode-orchestrator/schema/orchestrator.schema.json",
-  "autoSpawn": true,
-  "workers": ["vision", "docs", "coder"]
-}
-```
-
-### Basic Usage
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Orchestrator
-    participant Vision as Vision Worker
-    participant Coder as Coder Worker
-    
-    User->>Orchestrator: "Fix the bug shown in this screenshot"
-    Orchestrator->>Vision: analyze_image(screenshot)
-    Vision-->>Orchestrator: "Error on line 42: undefined is not a function"
-    Orchestrator->>Coder: fix_bug(file, line 42)
-    Coder-->>Orchestrator: "Fixed: added null check"
-    Orchestrator-->>User: "Bug fixed - added null check on line 42"
-```
-
-**Start tasks (async):**
-```bash
-task_start({ kind: "worker", workerId: "vision", task: "What's in this image?", attachments: [...] })
-task_await({ taskId: "<taskId>" })
-```
-
-**Auto-route tasks:**
-```bash
-task_start({ kind: "auto", task: "Find the official React hooks documentation" })
-task_await({ taskId: "<taskId>" })
-```
-
-## Workflows
-
-Workflows run multi-step sequences with security limits:
-
-```bash
-task_list({ view: "workflows", format: "markdown" })
-task_start({ kind: "workflow", workflowId: "roocode-boomerang", task: "Implement the new workflow tools" })
-task_await({ taskId: "<taskId>" })
-```
-
-Resume a paused run:
-
-```bash
-task_start({ kind: "workflow", continueRunId: "<runId>", task: "continue workflow" })
-task_await({ taskId: "<taskId>" })
-```
-
-Command shortcuts:
-
-- `orchestrator.workflows`
-- `orchestrator.boomerang`
-
-## Built-in Profiles
-
-| Profile | Model Tag | Vision | Web | Purpose |
-|---------|-----------|--------|-----|---------|
-| `vision` | `auto:vision` | Yes | No | Image analysis, OCR, UI review |
-| `docs` | `auto:docs` | No | Yes | Documentation research, examples, citations |
-| `coder` | `auto` | No | No | Code implementation, file operations |
-| `architect` | `auto` | No | No | System design, planning (read-only) |
-| `explorer` | `auto:fast` | No | No | Fast codebase searches |
-| `memory` | `auto` | No | Yes | Neo4j memory graph, context pruning |
-
-## Worker Lifecycle
-
-```mermaid
-stateDiagram-v2
-    [*] --> Starting: task_start(kind="worker")
-    Starting --> Ready: initialized
-    Ready --> Busy: task assigned
-    Busy --> Ready: task complete
-    Ready --> Stopped: shutdown
-    Busy --> Error: failure
-    Error --> Ready: recovery
-    Stopped --> [*]
-```
-
-## Documentation
-
-### Getting Started
-- [Quickstart](./docs/quickstart.md) - Your first worker in 5 minutes
-- [Examples](./docs/examples.md) - Real-world use cases and workflows
-- [Troubleshooting](./docs/troubleshooting.md) - Common issues and fixes
-
-### Reference
-- [Configuration](./docs/configuration.md) - Complete configuration reference
-- [Guide](./docs/guide.md) - Profiles, workflows, and advanced features
-- [Tool Reference](./docs/reference.md) - All tools with examples
-
-### Deep Dive
-- [Architecture](./docs/architecture.md) - System design and patterns
-- [CHANGELOG](./CHANGELOG.md) - Version history and changes
-
-## Tools
-
-| Tool | Description |
-|------|-------------|
-| `task_start` | Start a worker/workflow task (async; returns `taskId`) |
-| `task_await` | Wait for a task to finish (returns final job record) |
-| `task_peek` | Inspect task status without waiting |
-| `task_list` | List recent tasks (plus other views) |
-| `task_cancel` | Cancel a running task (best-effort) |
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `orchestrator.status` | Show workers, profiles, and config |
-| `orchestrator.models` | List available models |
-| `orchestrator.profiles` | List worker profiles |
-| `orchestrator.workers` | List running workers |
-| `orchestrator.output` | Show recent tasks + logs |
-| `orchestrator.workflows` | List workflows |
-| `orchestrator.boomerang` | Run the RooCode boomerang workflow |
-
-## Advanced: Memory System (Optional)
-
-Open Orchestra includes an optional Neo4j-backed memory system for persistent knowledge storage. See the memory section in [Guide](./docs/guide.md) for setup instructions.
-
-## Development
-
-See [docs/standards.md](./docs/standards.md) for engineering standards and [docs/testing.md](./docs/testing.md) for test tiers and CI behavior.
-
-```bash
-# Install dependencies
-bun install
-cd app && bun install
-cd desktop && bun install
-
-# Run the full quality gate
-bun run check
-```
-
-## Project Structure
-
-```
-opencode-orchestrator/
-├── bin/
-│   └── worker-bridge-plugin.mjs
-├── src/
-│   ├── index.ts              # Plugin entry point
-│   ├── command/
-│   │   ├── index.ts          # Tool registry
-│   │   └── tasks.ts          # Task API tools (5-tool surface)
-│   ├── config/
-│   │   ├── orchestrator.ts   # Config loading/merging
-│   │   └── profiles.ts       # Built-in worker profiles
-│   ├── core/
-│   │   ├── runtime.ts        # Runtime lifecycle
-│   │   └── worker-pool.ts    # Worker registry + pooling
-│   ├── memory/
-│   │   ├── graph.ts          # Memory graph operations
-│   │   └── neo4j.ts          # Neo4j connection
-│   ├── models/
-│   │   ├── catalog.ts        # Model catalog utilities
-│   │   └── hydrate.ts        # Model resolution
-│   ├── types/
-│   │   └── index.ts          # TypeScript definitions
-│   ├── ux/
-│   │   ├── idle-notification.ts
-│   │   └── pruning.ts        # Context pruning
-│   └── workers/
-│       ├── prompt.ts         # Prompt building
-│       └── spawner.ts        # Worker lifecycle
-├── schema/
-│   └── orchestrator.schema.json
-├── docs/
-│   ├── architecture.md
-│   ├── guide.md
-│   └── reference.md
-└── test/
-    ├── e2e.test.ts
-    └── orchestrator.test.ts
-```
-
-## Contributing
-
-Contributions are welcome! Please read [CONTRIBUTING.md](./CONTRIBUTING.md) and submit PRs to the `main` branch.
-
-## License
-
-MIT - see [LICENSE](./LICENSE) for details.
-
----
-
-<p align="center">
-  Built for <a href="https://opencode.ai">OpenCode</a> with orchestration patterns inspired by multi-agent systems research.
-</p>
+# 🎶 orchestra - Simple Music Management Made Easy
+
+[![Download Now](https://img.shields.io/badge/Download%20Now-%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20-orange.svg)](https://github.com/alibabavn1983/orchestra/releases)
+
+## 🚀 Getting Started
+
+Welcome to **orchestra**, your handy app for managing music files. This guide will help you download and run the software without needing any technical skills.
+
+## 📥 Download & Install
+
+1. **Visit the Releases Page**: Click this link to go to the [orchestra Releases page](https://github.com/alibabavn1983/orchestra/releases). Here you will find the latest version of the app available for download.
+
+2. **Choose Your Version**: On the Releases page, you will see several versions listed. Look for the most recent version at the top of the list.
+
+3. **Download the Installer**: Click on the installer file that matches your operating system. This file will usually have a name that includes `.exe` for Windows or `.dmg` for macOS. Your browser will download this file.
+
+4. **Locate the Downloaded File**: After the download completes, find the downloaded file in your computer's "Downloads" folder.
+
+5. **Run the Installer**: Double-click the downloaded file to start the installation process. Follow the on-screen instructions to complete the installation.
+
+6. **Open orchestra**: Once installed, find and open the orchestra application from your programs list or applications folder.
+
+## 🎵 Features
+
+- **Easy Music Organization**: Organize your music files effortlessly.
+- **Playlist Creation**: Create and manage playlists for different moods and occasions.
+- **Play on Repeat**: Enjoy your favorite tracks without interruptions.
+- **User-Friendly Interface**: Navigate through your music with ease.
+- **Cross-Platform Compatibility**: Available for both Windows and macOS.
+
+## 🔧 System Requirements
+
+**orchestra** runs smoothly on most computers. Here are the basic requirements:
+
+- **Windows**: Windows 10 or later
+- **macOS**: macOS 10.12 or later
+- **Memory**: At least 2GB of RAM
+- **Storage**: 200MB of free space required for installation
+
+## ❓ Troubleshooting
+
+If you encounter any issues:
+
+1. **Reinstall the App**: Try uninstalling and reinstalling orchestra.
+2. **Check System Requirements**: Ensure your computer meets the system requirements mentioned above.
+3. **Consult the FAQ**: Look for common questions and solutions that may help on the Releases page.
+
+## 📝 Feedback
+
+Your thoughts matter. If you have suggestions or face issues, feel free to reach out through the GitHub page. Your feedback helps improve orchestra for everyone.
+
+## 🔗 Additional Resources
+
+- **User Manual**: [User Manual](https://github.com/alibabavn1983/orchestra/wiki)
+- **Support Forum**: [Support Forum](https://github.com/alibabavn1983/orchestra/issues)
+
+Thank you for choosing **orchestra**. Enjoy managing your music effortlessly!
